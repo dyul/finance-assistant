@@ -1,9 +1,14 @@
+import { classifyTransaction } from "./categoryClassifier";
+
 export interface Transaction {
   date: string;
   description: string;
   income: number;
   expense: number;
   balance: number;
+  category: string;
+  categoryName: string;
+  confidence: "high" | "medium" | "low";
 }
 
 export interface ParsedTransactionResult {
@@ -26,27 +31,25 @@ function toNumber(value: unknown): number {
 
 export function parseTransactions(
   rows: Record<string, unknown>[],
-) : ParsedTransactionResult {
-
+): ParsedTransactionResult {
   const transactions: Transaction[] = [];
 
   let totalIncome = 0;
   let totalExpense = 0;
 
   for (const row of rows) {
+    const description = String(row.description ?? "");
+    const classification = classifyTransaction(description);
 
     const transaction: Transaction = {
-
       date: String(row.date ?? ""),
-
-      description: String(row.description ?? ""),
-
+      description,
       income: toNumber(row.income),
-
       expense: toNumber(row.expense),
-
       balance: toNumber(row.balance),
-
+      category: classification.category,
+      categoryName: classification.displayName,
+      confidence: classification.confidence,
     };
 
     totalIncome += transaction.income;
@@ -56,12 +59,8 @@ export function parseTransactions(
   }
 
   return {
-
     transactions,
-
     totalIncome,
-
     totalExpense,
-
   };
 }
