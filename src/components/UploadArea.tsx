@@ -11,14 +11,24 @@ import {
   type FinancialSummary,
 } from "../services/financialEngine";
 
-import { parseTransactions } from "../services/transactionParser";
+import {
+  parseTransactions,
+  type Transaction,
+} from "../services/transactionParser";
+
+import {
+  aggregateMonthly,
+  type MonthlySummary,
+} from "../services/monthlyAggregator";
 
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
+  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -26,7 +36,9 @@ export default function UploadArea() {
     setFileSize("");
     setSheetNames([]);
     setColumnMappings([]);
+    setTransactions([]);
     setSummary(null);
+    setMonthlySummaries([]);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -37,16 +49,16 @@ export default function UploadArea() {
     }
 
     setError("");
-    setSummary(null);
+    resetFileInfo();
 
     const allowedExtensions = [".xlsx", ".xls"];
-    const extension = file.name
-      .slice(file.name.lastIndexOf("."))
-      .toLowerCase();
+    const dotIndex = file.name.lastIndexOf(".");
+    const extension =
+      dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : "";
 
     if (!allowedExtensions.includes(extension)) {
       setError("엑셀 파일(.xlsx 또는 .xls)만 업로드할 수 있습니다.");
-      resetFileInfo();
+      event.target.value = "";
       return;
     }
 
@@ -57,60 +69,78 @@ export default function UploadArea() {
       const firstSheetName = workbook.SheetNames[0];
       const firstSheet = workbook.Sheets[firstSheetName];
 
-      if (!firstSheet) {
+      if (!firstSheetName || !firstSheet) {
         throw new Error("엑셀 시트를 찾을 수 없습니다.");
       }
 
-      // 첫 번째 시트를 행 배열 형태로 읽어 헤더를 찾습니다.
-      const rows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
+      // 첫 번째 시트를 행 배열 형태로 읽습니다.
+      const rawRows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
         header: 1,
         defval: "",
       });
 
-      const headerRow = rows.find((row) =>
+      // 첫 번째 비어 있지 않은 행을 헤더 행으로 판단합니다.
+      const headerRowIndex = rawRows.findIndex((row) =>
         row.some((cell) => String(cell).trim() !== ""),
       );
 
-      const columnNames = headerRow
-        ? headerRow
-            .map((cell) => String(cell).trim())
-            .filter((cell) => cell !== "")
-        : [];
-
-      if (columnNames.length === 0) {
+      if (headerRowIndex < 0) {
         setError("첫 번째 시트에서 컬럼명을 찾지 못했습니다.");
-        resetFileInfo();
+        event.target.value = "";
         return;
       }
 
-      // 원본 컬럼을 Finance Assistant 표준 컬럼으로 매핑합니다.
+      const headerRow = rawRows[headerRowIndex];
+
+      const columnNames = headerRow
+        .map((cell) => String(cell).trim())
+        .filter((cell) => cell !== "");
+
+      if (columnNames.length === 0) {
+        setError("첫 번째 시트에서 컬럼명을 찾지 못했습니다.");
+        event.target.value = "";
+        return;
+      }
+
+      // 컬럼명 자동 매핑
       const mappings = mapColumns(columnNames);
 
-      // 엑셀 데이터를 객체 배열 형태로 읽습니다.
+      /*
+       * 헤더 위에 제목이나 빈 행이 있을 수 있으므로
+       * range를 지정하여 실제 헤더 행부터 객체 배열로 읽습니다.
+       */
       const objectRows =
         XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
           defval: "",
+          range: headerRowIndex,
         });
 
-      // 원본 컬럼명을 표준 컬럼명으로 변환합니다.
+      // 원본 컬럼명을 표준 컬럼명으로 변환
       const standardizedRows = objectRows.map((row) => {
         const standardizedRow: Record<string, unknown> = {};
 
         for (const mapping of mappings) {
-          if (mapping.standardName !== "unknown") {
-            standardizedRow[mapping.standardName] =
-              row[mapping.originalName];
+          if (mapping.standardName === "unknown") {
+            continue;
           }
+
+          standardizedRow[mapping.standardName] =
+            row[mapping.originalName];
         }
 
         return standardizedRow;
       });
 
-      // 표준 거래내역으로 변환합니다.
+      // 표준 거래내역 생성 및 카테고리 분류
       const parsedResult = parseTransactions(standardizedRows);
 
-      // 재무 KPI를 계산합니다.
+      // 전체 재무 KPI 계산
       const financialSummary = calculateFinancialSummary(
+        parsedResult.transactions,
+      );
+
+      // 월별 현금흐름 집계
+      const monthlyResults = aggregateMonthly(
         parsedResult.transactions,
       );
 
@@ -118,17 +148,25 @@ export default function UploadArea() {
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
       setSheetNames(workbook.SheetNames);
       setColumnMappings(mappings);
+      setTransactions(parsedResult.transactions);
       setSummary(financialSummary);
+      setMonthlySummaries(monthlyResults);
     } catch (caughtError) {
       console.error(caughtError);
-      setError("파일을 읽는 중 오류가 발생했습니다.");
       resetFileInfo();
+      setError("파일을 읽는 중 오류가 발생했습니다.");
+    } finally {
+      /*
+       * 같은 파일을 다시 선택해도 onChange가 동작하도록
+       * input 값을 초기화합니다.
+       */
+      event.target.value = "";
     }
   }
 
   function getConfidenceLabel(
     confidence: ColumnMapping["confidence"],
-  ) {
+  ): string {
     if (confidence === "high") {
       return "높음";
     }
@@ -142,7 +180,7 @@ export default function UploadArea() {
 
   function getConfidenceStyle(
     confidence: ColumnMapping["confidence"],
-  ) {
+  ): string {
     if (confidence === "high") {
       return "bg-emerald-50 text-emerald-700";
     }
@@ -154,8 +192,31 @@ export default function UploadArea() {
     return "bg-red-50 text-red-700";
   }
 
-  function formatCurrency(value: number) {
-    return `${Math.round(value).toLocaleString("ko-KR")}원`;
+  function formatCurrency(value: number): string {
+    const roundedValue = Math.round(value);
+    const formattedValue = Math.abs(roundedValue).toLocaleString("ko-KR");
+
+    return roundedValue < 0
+      ? `-${formattedValue}원`
+      : `${formattedValue}원`;
+  }
+
+  function formatSignedCurrency(value: number): string {
+    if (value > 0) {
+      return `+${formatCurrency(value)}`;
+    }
+
+    return formatCurrency(value);
+  }
+
+  function formatMonth(month: string): string {
+    const [year, monthNumber] = month.split("-");
+
+    if (!year || !monthNumber) {
+      return month;
+    }
+
+    return `${year}년 ${Number(monthNumber)}월`;
   }
 
   return (
@@ -264,6 +325,7 @@ export default function UploadArea() {
 
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-500">순현금흐름</p>
+
               <p
                 className={`mt-2 text-xl font-bold ${
                   summary.netCashFlow >= 0
@@ -271,8 +333,7 @@ export default function UploadArea() {
                     : "text-red-700"
                 }`}
               >
-                {summary.netCashFlow >= 0 ? "+" : ""}
-                {formatCurrency(summary.netCashFlow)}
+                {formatSignedCurrency(summary.netCashFlow)}
               </p>
             </div>
 
@@ -307,6 +368,162 @@ export default function UploadArea() {
                 {formatCurrency(summary.largestExpense)}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {monthlySummaries.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              월별 현금흐름
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              거래일을 기준으로 월별 입금과 출금을 집계했습니다.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[650px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">기준월</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    총 입금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    총 출금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    순현금흐름
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    거래 건수
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {monthlySummaries.map((monthlySummary) => (
+                  <tr key={monthlySummary.month}>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {formatMonth(monthlySummary.month)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-emerald-700">
+                      {formatCurrency(monthlySummary.income)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {formatCurrency(monthlySummary.expense)}
+                    </td>
+
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${
+                        monthlySummary.netCashFlow >= 0
+                          ? "text-blue-700"
+                          : "text-red-700"
+                      }`}
+                    >
+                      {formatSignedCurrency(
+                        monthlySummary.netCashFlow,
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      {monthlySummary.transactionCount.toLocaleString(
+                        "ko-KR",
+                      )}
+                      건
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {transactions.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              거래 자동 분류 결과
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              거래 적요를 기준으로 카테고리를 자동 분류했습니다.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[750px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">거래일</th>
+                  <th className="px-4 py-3 font-medium">적요</th>
+                  <th className="px-4 py-3 font-medium">분류</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    입금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    출금
+                  </th>
+                  <th className="px-4 py-3 font-medium">신뢰도</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {transactions.map((transaction, index) => (
+                  <tr
+                    key={`${transaction.date}-${transaction.description}-${index}`}
+                  >
+                    <td className="px-4 py-3 text-slate-700">
+                      {transaction.date}
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-900">
+                      {transaction.description}
+                    </td>
+
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {transaction.categoryName}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-emerald-700">
+                      {transaction.income > 0
+                        ? formatCurrency(transaction.income)
+                        : "-"}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {transaction.expense > 0
+                        ? formatCurrency(transaction.expense)
+                        : "-"}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          transaction.confidence === "high"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : transaction.confidence === "medium"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {transaction.confidence === "high"
+                          ? "높음"
+                          : transaction.confidence === "medium"
+                            ? "보통"
+                            : "낮음"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
