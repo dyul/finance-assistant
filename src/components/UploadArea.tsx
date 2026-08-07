@@ -21,6 +21,21 @@ import {
   type MonthlySummary,
 } from "../services/monthlyAggregator";
 
+import {
+  aggregateExpensesByCategory,
+  type CategorySummary,
+} from "../services/categoryAggregator";
+
+import {
+  aggregateMonthlyExpensesByCategory,
+  type MonthlyCategorySummary,
+} from "../services/monthlyCategoryAggregator";
+
+import {
+  generateFinancialInsights,
+  type FinancialInsight,
+} from "../services/insightEngine";
+
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -29,6 +44,13 @@ export default function UploadArea() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
+  const [categorySummaries, setCategorySummaries] = useState<CategorySummary[]>(
+    [],
+  );
+  const [monthlyCategorySummaries, setMonthlyCategorySummaries] = useState<
+    MonthlyCategorySummary[]
+  >([]);
+  const [insights, setInsights] = useState<FinancialInsight[]>([]);
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -39,6 +61,9 @@ export default function UploadArea() {
     setTransactions([]);
     setSummary(null);
     setMonthlySummaries([]);
+    setCategorySummaries([]);
+    setMonthlyCategorySummaries([]);
+    setInsights([]);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -73,13 +98,11 @@ export default function UploadArea() {
         throw new Error("엑셀 시트를 찾을 수 없습니다.");
       }
 
-      // 첫 번째 시트를 행 배열 형태로 읽습니다.
       const rawRows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
         header: 1,
         defval: "",
       });
 
-      // 첫 번째 비어 있지 않은 행을 헤더 행으로 판단합니다.
       const headerRowIndex = rawRows.findIndex((row) =>
         row.some((cell) => String(cell).trim() !== ""),
       );
@@ -102,20 +125,14 @@ export default function UploadArea() {
         return;
       }
 
-      // 컬럼명 자동 매핑
       const mappings = mapColumns(columnNames);
 
-      /*
-       * 헤더 위에 제목이나 빈 행이 있을 수 있으므로
-       * range를 지정하여 실제 헤더 행부터 객체 배열로 읽습니다.
-       */
       const objectRows =
         XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
           defval: "",
           range: headerRowIndex,
         });
 
-      // 원본 컬럼명을 표준 컬럼명으로 변환
       const standardizedRows = objectRows.map((row) => {
         const standardizedRow: Record<string, unknown> = {};
 
@@ -131,17 +148,29 @@ export default function UploadArea() {
         return standardizedRow;
       });
 
-      // 표준 거래내역 생성 및 카테고리 분류
       const parsedResult = parseTransactions(standardizedRows);
 
-      // 전체 재무 KPI 계산
       const financialSummary = calculateFinancialSummary(
         parsedResult.transactions,
       );
 
-      // 월별 현금흐름 집계
       const monthlyResults = aggregateMonthly(
         parsedResult.transactions,
+      );
+
+      const categoryResults = aggregateExpensesByCategory(
+        parsedResult.transactions,
+      );
+
+      const monthlyCategoryResults =
+        aggregateMonthlyExpensesByCategory(
+          parsedResult.transactions,
+        );
+
+      const generatedInsights = generateFinancialInsights(
+        monthlyResults,
+        categoryResults,
+        monthlyCategoryResults,
       );
 
       setFileName(file.name);
@@ -151,15 +180,14 @@ export default function UploadArea() {
       setTransactions(parsedResult.transactions);
       setSummary(financialSummary);
       setMonthlySummaries(monthlyResults);
+      setCategorySummaries(categoryResults);
+      setMonthlyCategorySummaries(monthlyCategoryResults);
+      setInsights(generatedInsights);
     } catch (caughtError) {
       console.error(caughtError);
       resetFileInfo();
       setError("파일을 읽는 중 오류가 발생했습니다.");
     } finally {
-      /*
-       * 같은 파일을 다시 선택해도 onChange가 동작하도록
-       * input 값을 초기화합니다.
-       */
       event.target.value = "";
     }
   }
@@ -339,6 +367,7 @@ export default function UploadArea() {
 
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-500">거래 건수</p>
+
               <p className="mt-2 text-xl font-bold text-slate-900">
                 {summary.transactionCount.toLocaleString("ko-KR")}건
               </p>
@@ -350,20 +379,27 @@ export default function UploadArea() {
               <p className="text-sm text-slate-500">
                 평균 거래금액
               </p>
+
               <p className="mt-1 font-semibold text-slate-900">
                 {formatCurrency(summary.averageTransactionAmount)}
               </p>
             </div>
 
             <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">최대 입금</p>
+              <p className="text-sm text-slate-500">
+                최대 입금
+              </p>
+
               <p className="mt-1 font-semibold text-slate-900">
                 {formatCurrency(summary.largestIncome)}
               </p>
             </div>
 
             <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">최대 출금</p>
+              <p className="text-sm text-slate-500">
+                최대 출금
+              </p>
+
               <p className="mt-1 font-semibold text-slate-900">
                 {formatCurrency(summary.largestExpense)}
               </p>
@@ -441,6 +477,164 @@ export default function UploadArea() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {categorySummaries.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              카테고리별 지출 분석
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              전체 출금액을 자동 분류된 카테고리별로 분석했습니다.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[600px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">카테고리</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    지출액
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    지출 비중
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    거래 건수
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {categorySummaries.map((categorySummary) => (
+                  <tr key={categorySummary.category}>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {categorySummary.categoryName}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {formatCurrency(categorySummary.amount)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      {categorySummary.shareOfExpense.toFixed(1)}%
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      {categorySummary.transactionCount.toLocaleString(
+                        "ko-KR",
+                      )}
+                      건
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {monthlyCategorySummaries.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              월별 주요 지출
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              각 월의 지출을 카테고리별로 분석했습니다.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[700px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">기준월</th>
+                  <th className="px-4 py-3 font-medium">
+                    카테고리
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    지출액
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    월 지출 비중
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    거래 건수
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {monthlyCategorySummaries.map((item) => (
+                  <tr key={`${item.month}-${item.category}`}>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {formatMonth(item.month)}
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-900">
+                      {item.categoryName}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {formatCurrency(item.amount)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      {item.shareOfMonthlyExpense.toFixed(1)}%
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      {item.transactionCount.toLocaleString("ko-KR")}건
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {insights.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              재무 인사이트
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              최근 현금흐름과 월별 지출 구조를 기준으로 자동 생성한
+              분석입니다.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {insights.map((insight, index) => (
+              <div
+                key={`${insight.title}-${index}`}
+                className={`rounded-lg border p-4 ${
+                  insight.level === "positive"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : insight.level === "warning"
+                      ? "border-amber-200 bg-amber-50"
+                      : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <p className="font-medium text-slate-900">
+                  {insight.title}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-700">
+                  {insight.message}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -551,7 +745,9 @@ export default function UploadArea() {
                   <th className="px-4 py-3 font-medium">
                     인식 결과
                   </th>
-                  <th className="px-4 py-3 font-medium">신뢰도</th>
+                  <th className="px-4 py-3 font-medium">
+                    신뢰도
+                  </th>
                 </tr>
               </thead>
 
