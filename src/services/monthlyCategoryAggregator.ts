@@ -20,6 +20,10 @@ export function aggregateMonthlyExpensesByCategory(
   const summaryMap = new Map<string, MonthlyCategorySummary>();
 
   for (const transaction of expenseTransactions) {
+    if (transaction.date === null) {
+      continue;
+    }
+
     const month = transaction.date.slice(0, 7);
 
     const currentMonthlyTotal = monthlyExpenseTotals.get(month) ?? 0;

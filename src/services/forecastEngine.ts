@@ -1,5 +1,9 @@
 import type { RecurringTransaction } from "./recurringTransactionDetector";
 import type { Transaction } from "./transactionParser";
+import {
+  analyzeCashRisk,
+  type CashRiskAnalysis,
+} from "./cashRiskAnalyzer";
 
 export interface MonthlyForecast {
   month: string;
@@ -35,40 +39,25 @@ function formatMonth(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-function normalizeDate(date: string): number {
-  const normalized = String(date).trim();
-
-  const match = normalized.match(
-    /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/,
-  );
-
-  if (!match) {
-    return 0;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-
-  return new Date(year, month - 1, day).getTime();
-}
-
 export function getLatestBalance(
   transactions: Transaction[],
-): number {
-  if (transactions.length === 0) {
-    return 0;
+): number | null {
+  const datedTransactions = transactions.filter(
+    (transaction) => transaction.date !== null,
+  );
+
+  if (datedTransactions.length === 0) {
+    return null;
   }
 
-  const sortedTransactions = [...transactions].sort(
-    (a, b) =>
-      normalizeDate(a.date) - normalizeDate(b.date),
+  const sortedTransactions = [...datedTransactions].sort(
+    (a, b) => a.date!.localeCompare(b.date!),
   );
 
   const latestTransaction =
     sortedTransactions[sortedTransactions.length - 1];
 
-  return latestTransaction?.balance ?? 0;
+  return latestTransaction?.balance ?? null;
 }
 
 export function generateCashFlowForecast(
@@ -159,4 +148,30 @@ export function generateCashFlowForecast(
   }
 
   return forecasts;
+}
+
+export function createForecastAnalysis(
+  recurringTransactions: RecurringTransaction[],
+  currentBalance: number | null,
+): {
+  forecasts: MonthlyForecast[];
+  cashRisk: CashRiskAnalysis | null;
+} {
+  if (currentBalance === null) {
+    return {
+      forecasts: [],
+      cashRisk: null,
+    };
+  }
+
+  const forecasts = generateCashFlowForecast(
+    recurringTransactions,
+    currentBalance,
+    3,
+  );
+
+  return {
+    forecasts,
+    cashRisk: analyzeCashRisk(forecasts),
+  };
 }

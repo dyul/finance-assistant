@@ -18,6 +18,10 @@ export function aggregateMonthly(
   const monthlyMap = new Map<string, MonthlySummary>();
 
 for (const transaction of transactions) {
+  if (transaction.date === null) {
+    continue;
+  }
+
   const month = transaction.date.slice(0, 7);
 
   if (!monthlyMap.has(month)) {

@@ -42,15 +42,50 @@ import {
 } from "../services/recurringTransactionDetector";
 
 import {
-  generateCashFlowForecast,
+  createForecastAnalysis,
   getLatestBalance,
   type MonthlyForecast,
 } from "../services/forecastEngine";
 
-import {
-  analyzeCashRisk,
-  type CashRiskAnalysis,
-} from "../services/cashRiskAnalyzer";
+import type { CashRiskAnalysis } from "../services/cashRiskAnalyzer";
+
+export function InvalidDateWarning({ count }: { count: number }) {
+  if (count <= 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
+      role="status"
+    >
+      <p className="font-semibold text-amber-900">
+        날짜를 확인할 수 없는 거래 {count}건
+      </p>
+
+      <p className="mt-1 text-sm leading-6 text-amber-800">
+        해당 거래의 금액은 전체 입출금과 전체 거래 건수에는
+        포함되지만, 월별 분석·반복 거래·최신 잔액·예측에서는
+        제외됩니다. 따라서 전체 합계와 월별 합계가 다를 수
+        있습니다.
+      </p>
+    </div>
+  );
+}
+
+export function TransactionDateValue({
+  date,
+}: Pick<Transaction, "date">) {
+  if (date !== null) {
+    return date;
+  }
+
+  return (
+    <span className="font-medium text-amber-700">
+      날짜 확인 필요
+    </span>
+  );
+}
 
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
@@ -83,6 +118,8 @@ export default function UploadArea() {
 
   const [latestBalance, setLatestBalance] = useState<number | null>(null);
 
+  const [invalidDateCount, setInvalidDateCount] = useState(0);
+
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -100,6 +137,7 @@ export default function UploadArea() {
     setForecasts([]);
     setCashRisk(null);
     setLatestBalance(null);
+    setInvalidDateCount(0);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -126,6 +164,8 @@ export default function UploadArea() {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const date1904 =
+        workbook.Workbook?.WBProps?.date1904 === true;
 
       const firstSheetName = workbook.SheetNames[0];
       const firstSheet = workbook.Sheets[firstSheetName];
@@ -184,7 +224,9 @@ export default function UploadArea() {
         return standardizedRow;
       });
 
-      const parsedResult = parseTransactions(standardizedRows);
+      const parsedResult = parseTransactions(standardizedRows, {
+        date1904,
+      });
 
       const financialSummary = calculateFinancialSummary(
         parsedResult.transactions,
@@ -217,15 +259,10 @@ export default function UploadArea() {
         parsedResult.transactions,
       );
 
-      const forecastResults = generateCashFlowForecast(
-        recurringResults,
-        currentBalance,
-        3,
-      );
-
-      const riskAnalysis = analyzeCashRisk(
-        forecastResults,
-      );
+      const {
+        forecasts: forecastResults,
+        cashRisk: riskAnalysis,
+      } = createForecastAnalysis(recurringResults, currentBalance);
 
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
@@ -239,6 +276,7 @@ export default function UploadArea() {
       setInsights(generatedInsights);
       setRecurringTransactions(recurringResults);
       setLatestBalance(currentBalance);
+      setInvalidDateCount(parsedResult.invalidDateCount);
       setForecasts(forecastResults);
       setCashRisk(riskAnalysis);
     } catch (caughtError) {
@@ -477,6 +515,8 @@ export default function UploadArea() {
           )}
         </div>
       )}
+
+      <InvalidDateWarning count={invalidDateCount} />
 
       {monthlySummaries.length > 0 && (
         <div className="mt-6">
@@ -931,7 +971,9 @@ export default function UploadArea() {
                     key={`${item.date}-${item.description}-${index}`}
                     className="border-t border-slate-200"
                   >
-                    <td className="px-4 py-3">{item.date}</td>
+                    <td className="px-4 py-3">
+                      <TransactionDateValue date={item.date} />
+                    </td>
 
                     <td className="px-4 py-3">
                       {item.description}

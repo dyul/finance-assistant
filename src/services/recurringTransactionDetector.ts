@@ -39,23 +39,6 @@ function normalizeDescription(description: string): string {
     .replace(/\s+/g, "");
 }
 
-function getTransactionMonth(date: string): string {
-  const normalizedDate = String(date).trim();
-
-  const match = normalizedDate.match(
-    /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/,
-  );
-
-  if (!match) {
-    return "";
-  }
-
-  const year = match[1];
-  const month = match[2].padStart(2, "0");
-
-  return `${year}-${month}`;
-}
-
 function calculateAverage(values: number[]): number {
   if (values.length === 0) {
     return 0;
@@ -92,11 +75,11 @@ export function detectRecurringTransactions(
   const groups = new Map<string, RecurringGroup>();
 
   for (const transaction of transactions) {
-    const month = getTransactionMonth(transaction.date);
-
-    if (!month) {
+    if (transaction.date === null) {
       continue;
     }
+
+    const month = transaction.date.slice(0, 7);
 
     const isIncome = transaction.income > 0;
     const isExpense = transaction.expense > 0;
