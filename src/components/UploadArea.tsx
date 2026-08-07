@@ -36,6 +36,11 @@ import {
   type FinancialInsight,
 } from "../services/insightEngine";
 
+import {
+  detectRecurringTransactions,
+  type RecurringTransaction,
+} from "../services/recurringTransactionDetector";
+
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -43,14 +48,24 @@ export default function UploadArea() {
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
-  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
-  const [categorySummaries, setCategorySummaries] = useState<CategorySummary[]>(
-    [],
-  );
-  const [monthlyCategorySummaries, setMonthlyCategorySummaries] = useState<
-    MonthlyCategorySummary[]
+
+  const [monthlySummaries, setMonthlySummaries] = useState<
+    MonthlySummary[]
   >([]);
+
+  const [categorySummaries, setCategorySummaries] = useState<
+    CategorySummary[]
+  >([]);
+
+  const [monthlyCategorySummaries, setMonthlyCategorySummaries] =
+    useState<MonthlyCategorySummary[]>([]);
+
   const [insights, setInsights] = useState<FinancialInsight[]>([]);
+
+  const [recurringTransactions, setRecurringTransactions] = useState<
+    RecurringTransaction[]
+  >([]);
+
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -64,6 +79,7 @@ export default function UploadArea() {
     setCategorySummaries([]);
     setMonthlyCategorySummaries([]);
     setInsights([]);
+    setRecurringTransactions([]);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -173,6 +189,10 @@ export default function UploadArea() {
         monthlyCategoryResults,
       );
 
+      const recurringResults = detectRecurringTransactions(
+        parsedResult.transactions,
+      );
+
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
       setSheetNames(workbook.SheetNames);
@@ -183,6 +203,7 @@ export default function UploadArea() {
       setCategorySummaries(categoryResults);
       setMonthlyCategorySummaries(monthlyCategoryResults);
       setInsights(generatedInsights);
+      setRecurringTransactions(recurringResults);
     } catch (caughtError) {
       console.error(caughtError);
       resetFileInfo();
@@ -306,21 +327,6 @@ export default function UploadArea() {
               </dd>
             </div>
           </dl>
-
-          <div className="mt-4">
-            <p className="text-sm text-slate-500">시트 목록</p>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              {sheetNames.map((sheetName) => (
-                <span
-                  key={sheetName}
-                  className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
-                >
-                  {sheetName}
-                </span>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -330,10 +336,6 @@ export default function UploadArea() {
             <h3 className="font-semibold text-slate-900">
               재무 요약
             </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              업로드한 거래내역을 기준으로 계산한 결과입니다.
-            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -367,41 +369,8 @@ export default function UploadArea() {
 
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-500">거래 건수</p>
-
               <p className="mt-2 text-xl font-bold text-slate-900">
                 {summary.transactionCount.toLocaleString("ko-KR")}건
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">
-                평균 거래금액
-              </p>
-
-              <p className="mt-1 font-semibold text-slate-900">
-                {formatCurrency(summary.averageTransactionAmount)}
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">
-                최대 입금
-              </p>
-
-              <p className="mt-1 font-semibold text-slate-900">
-                {formatCurrency(summary.largestIncome)}
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">
-                최대 출금
-              </p>
-
-              <p className="mt-1 font-semibold text-slate-900">
-                {formatCurrency(summary.largestExpense)}
               </p>
             </div>
           </div>
@@ -410,68 +379,127 @@ export default function UploadArea() {
 
       {monthlySummaries.length > 0 && (
         <div className="mt-6">
+          <h3 className="mb-3 font-semibold text-slate-900">
+            월별 현금흐름
+          </h3>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[650px] text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left">기준월</th>
+                  <th className="px-4 py-3 text-right">총 입금</th>
+                  <th className="px-4 py-3 text-right">총 출금</th>
+                  <th className="px-4 py-3 text-right">
+                    순현금흐름
+                  </th>
+                  <th className="px-4 py-3 text-right">거래 건수</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200">
+                {monthlySummaries.map((item) => (
+                  <tr key={item.month}>
+                    <td className="px-4 py-3 font-medium">
+                      {formatMonth(item.month)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-emerald-700">
+                      {formatCurrency(item.income)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {formatCurrency(item.expense)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right font-semibold text-blue-700">
+                      {formatSignedCurrency(item.netCashFlow)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      {item.transactionCount}건
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {recurringTransactions.length > 0 && (
+        <div className="mt-6">
           <div className="mb-3">
             <h3 className="font-semibold text-slate-900">
-              월별 현금흐름
+              반복 거래 분석
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              거래일을 기준으로 월별 입금과 출금을 집계했습니다.
+              여러 달에 반복된 거래를 탐지해 향후 현금흐름 예측 후보로
+              분류했습니다.
             </p>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[650px] text-left text-sm">
+            <table className="w-full min-w-[850px] text-left text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 font-medium">기준월</th>
+                  <th className="px-4 py-3 font-medium">거래내용</th>
+                  <th className="px-4 py-3 font-medium">유형</th>
+                  <th className="px-4 py-3 font-medium">분류</th>
                   <th className="px-4 py-3 text-right font-medium">
-                    총 입금
+                    평균금액
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
-                    총 출금
+                    발생월
                   </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    순현금흐름
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    거래 건수
-                  </th>
+                  <th className="px-4 py-3 font-medium">기간</th>
+                  <th className="px-4 py-3 font-medium">신뢰도</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-200 bg-white">
-                {monthlySummaries.map((monthlySummary) => (
-                  <tr key={monthlySummary.month}>
+                {recurringTransactions.map((item, index) => (
+                  <tr
+                    key={`${item.description}-${item.type}-${index}`}
+                  >
                     <td className="px-4 py-3 font-medium text-slate-900">
-                      {formatMonth(monthlySummary.month)}
+                      {item.description}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatCurrency(monthlySummary.income)}
+                    <td className="px-4 py-3">
+                      {item.type === "income" ? "수입" : "지출"}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(monthlySummary.expense)}
+                    <td className="px-4 py-3">
+                      {item.categoryName}
                     </td>
 
-                    <td
-                      className={`px-4 py-3 text-right font-semibold ${
-                        monthlySummary.netCashFlow >= 0
-                          ? "text-blue-700"
-                          : "text-red-700"
-                      }`}
-                    >
-                      {formatSignedCurrency(
-                        monthlySummary.netCashFlow,
-                      )}
+                    <td className="px-4 py-3 text-right">
+                      {formatCurrency(item.averageAmount)}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-slate-700">
-                      {monthlySummary.transactionCount.toLocaleString(
-                        "ko-KR",
-                      )}
-                      건
+                    <td className="px-4 py-3 text-right">
+                      {item.activeMonthCount}개월
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {formatMonth(item.firstMonth)} ~{" "}
+                      {formatMonth(item.lastMonth)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          item.confidence === "high"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {item.confidence === "high"
+                          ? "높음"
+                          : "보통"}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -483,53 +511,36 @@ export default function UploadArea() {
 
       {categorySummaries.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              카테고리별 지출 분석
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              전체 출금액을 자동 분류된 카테고리별로 분석했습니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            카테고리별 지출 분석
+          </h3>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[600px] text-left text-sm">
+            <table className="w-full min-w-[600px] text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 font-medium">카테고리</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    지출액
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    지출 비중
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    거래 건수
-                  </th>
+                  <th className="px-4 py-3 text-left">카테고리</th>
+                  <th className="px-4 py-3 text-right">지출액</th>
+                  <th className="px-4 py-3 text-right">지출 비중</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {categorySummaries.map((categorySummary) => (
-                  <tr key={categorySummary.category}>
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {categorySummary.categoryName}
+              <tbody>
+                {categorySummaries.map((item) => (
+                  <tr
+                    key={item.category}
+                    className="border-t border-slate-200"
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      {item.categoryName}
                     </td>
 
                     <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(categorySummary.amount)}
+                      {formatCurrency(item.amount)}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-slate-700">
-                      {categorySummary.shareOfExpense.toFixed(1)}%
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-slate-700">
-                      {categorySummary.transactionCount.toLocaleString(
-                        "ko-KR",
-                      )}
-                      건
+                    <td className="px-4 py-3 text-right">
+                      {item.shareOfExpense.toFixed(1)}%
                     </td>
                   </tr>
                 ))}
@@ -541,44 +552,34 @@ export default function UploadArea() {
 
       {monthlyCategorySummaries.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              월별 주요 지출
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              각 월의 지출을 카테고리별로 분석했습니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            월별 주요 지출
+          </h3>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[700px] text-left text-sm">
+            <table className="w-full min-w-[650px] text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 font-medium">기준월</th>
-                  <th className="px-4 py-3 font-medium">
-                    카테고리
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    지출액
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
+                  <th className="px-4 py-3 text-left">기준월</th>
+                  <th className="px-4 py-3 text-left">카테고리</th>
+                  <th className="px-4 py-3 text-right">지출액</th>
+                  <th className="px-4 py-3 text-right">
                     월 지출 비중
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    거래 건수
                   </th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody>
                 {monthlyCategorySummaries.map((item) => (
-                  <tr key={`${item.month}-${item.category}`}>
-                    <td className="px-4 py-3 font-medium text-slate-900">
+                  <tr
+                    key={`${item.month}-${item.category}`}
+                    className="border-t border-slate-200"
+                  >
+                    <td className="px-4 py-3 font-medium">
                       {formatMonth(item.month)}
                     </td>
 
-                    <td className="px-4 py-3 text-slate-900">
+                    <td className="px-4 py-3">
                       {item.categoryName}
                     </td>
 
@@ -586,12 +587,8 @@ export default function UploadArea() {
                       {formatCurrency(item.amount)}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-slate-700">
+                    <td className="px-4 py-3 text-right">
                       {item.shareOfMonthlyExpense.toFixed(1)}%
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-slate-700">
-                      {item.transactionCount.toLocaleString("ko-KR")}건
                     </td>
                   </tr>
                 ))}
@@ -603,16 +600,9 @@ export default function UploadArea() {
 
       {insights.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              재무 인사이트
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              최근 현금흐름과 월별 지출 구조를 기준으로 자동 생성한
-              분석입니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            재무 인사이트
+          </h3>
 
           <div className="space-y-3">
             {insights.map((insight, index) => (
@@ -641,78 +631,46 @@ export default function UploadArea() {
 
       {transactions.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              거래 자동 분류 결과
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              거래 적요를 기준으로 카테고리를 자동 분류했습니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            거래 자동 분류 결과
+          </h3>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[750px] text-left text-sm">
+            <table className="w-full min-w-[750px] text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 font-medium">거래일</th>
-                  <th className="px-4 py-3 font-medium">적요</th>
-                  <th className="px-4 py-3 font-medium">분류</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    입금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    출금
-                  </th>
-                  <th className="px-4 py-3 font-medium">신뢰도</th>
+                  <th className="px-4 py-3 text-left">거래일</th>
+                  <th className="px-4 py-3 text-left">적요</th>
+                  <th className="px-4 py-3 text-left">분류</th>
+                  <th className="px-4 py-3 text-right">입금</th>
+                  <th className="px-4 py-3 text-right">출금</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {transactions.map((transaction, index) => (
+              <tbody>
+                {transactions.map((item, index) => (
                   <tr
-                    key={`${transaction.date}-${transaction.description}-${index}`}
+                    key={`${item.date}-${item.description}-${index}`}
+                    className="border-t border-slate-200"
                   >
-                    <td className="px-4 py-3 text-slate-700">
-                      {transaction.date}
+                    <td className="px-4 py-3">{item.date}</td>
+                    <td className="px-4 py-3">
+                      {item.description}
                     </td>
-
-                    <td className="px-4 py-3 text-slate-900">
-                      {transaction.description}
-                    </td>
-
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {transaction.categoryName}
+                    <td className="px-4 py-3">
+                      {item.categoryName}
                     </td>
 
                     <td className="px-4 py-3 text-right text-emerald-700">
-                      {transaction.income > 0
-                        ? formatCurrency(transaction.income)
+                      {item.income > 0
+                        ? formatCurrency(item.income)
                         : "-"}
                     </td>
 
                     <td className="px-4 py-3 text-right text-red-700">
-                      {transaction.expense > 0
-                        ? formatCurrency(transaction.expense)
+                      {item.expense > 0
+                        ? formatCurrency(item.expense)
                         : "-"}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          transaction.confidence === "high"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : transaction.confidence === "medium"
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {transaction.confidence === "high"
-                          ? "높음"
-                          : transaction.confidence === "medium"
-                            ? "보통"
-                            : "낮음"}
-                      </span>
                     </td>
                   </tr>
                 ))}
@@ -724,41 +682,31 @@ export default function UploadArea() {
 
       {columnMappings.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              컬럼 자동 인식 결과
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              첫 번째 시트의 컬럼을 Finance Assistant 표준 항목으로
-              변환했습니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            컬럼 자동 인식 결과
+          </h3>
 
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 font-medium">
-                    원본 컬럼
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    인식 결과
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    신뢰도
-                  </th>
+                  <th className="px-4 py-3 text-left">원본 컬럼</th>
+                  <th className="px-4 py-3 text-left">인식 결과</th>
+                  <th className="px-4 py-3 text-left">신뢰도</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody>
                 {columnMappings.map((mapping, index) => (
-                  <tr key={`${mapping.originalName}-${index}`}>
-                    <td className="px-4 py-3 text-slate-700">
+                  <tr
+                    key={`${mapping.originalName}-${index}`}
+                    className="border-t border-slate-200"
+                  >
+                    <td className="px-4 py-3">
                       {mapping.originalName}
                     </td>
 
-                    <td className="px-4 py-3 font-medium text-slate-900">
+                    <td className="px-4 py-3 font-medium">
                       {mapping.displayName}
                     </td>
 
