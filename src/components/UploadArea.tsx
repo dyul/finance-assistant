@@ -41,6 +41,17 @@ import {
   type RecurringTransaction,
 } from "../services/recurringTransactionDetector";
 
+import {
+  generateCashFlowForecast,
+  getLatestBalance,
+  type MonthlyForecast,
+} from "../services/forecastEngine";
+
+import {
+  analyzeCashRisk,
+  type CashRiskAnalysis,
+} from "../services/cashRiskAnalyzer";
+
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -66,6 +77,12 @@ export default function UploadArea() {
     RecurringTransaction[]
   >([]);
 
+  const [forecasts, setForecasts] = useState<MonthlyForecast[]>([]);
+
+  const [cashRisk, setCashRisk] = useState<CashRiskAnalysis | null>(null);
+
+  const [latestBalance, setLatestBalance] = useState<number | null>(null);
+
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -80,6 +97,9 @@ export default function UploadArea() {
     setMonthlyCategorySummaries([]);
     setInsights([]);
     setRecurringTransactions([]);
+    setForecasts([]);
+    setCashRisk(null);
+    setLatestBalance(null);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -193,6 +213,20 @@ export default function UploadArea() {
         parsedResult.transactions,
       );
 
+      const currentBalance = getLatestBalance(
+        parsedResult.transactions,
+      );
+
+      const forecastResults = generateCashFlowForecast(
+        recurringResults,
+        currentBalance,
+        3,
+      );
+
+      const riskAnalysis = analyzeCashRisk(
+        forecastResults,
+      );
+
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
       setSheetNames(workbook.SheetNames);
@@ -204,6 +238,9 @@ export default function UploadArea() {
       setMonthlyCategorySummaries(monthlyCategoryResults);
       setInsights(generatedInsights);
       setRecurringTransactions(recurringResults);
+      setLatestBalance(currentBalance);
+      setForecasts(forecastResults);
+      setCashRisk(riskAnalysis);
     } catch (caughtError) {
       console.error(caughtError);
       resetFileInfo();
@@ -266,6 +303,54 @@ export default function UploadArea() {
     }
 
     return `${year}년 ${Number(monthNumber)}월`;
+  }
+
+  function getCashRiskLabel(): string {
+    if (!cashRisk) {
+      return "";
+    }
+
+    if (cashRisk.level === "safe") {
+      return "안전";
+    }
+
+    if (cashRisk.level === "warning") {
+      return "주의";
+    }
+
+    return "위험";
+  }
+
+  function getCashRiskCardStyle(): string {
+    if (!cashRisk) {
+      return "";
+    }
+
+    if (cashRisk.level === "safe") {
+      return "border-emerald-200 bg-emerald-50";
+    }
+
+    if (cashRisk.level === "warning") {
+      return "border-amber-200 bg-amber-50";
+    }
+
+    return "border-red-200 bg-red-50";
+  }
+
+  function getCashRiskBadgeStyle(): string {
+    if (!cashRisk) {
+      return "";
+    }
+
+    if (cashRisk.level === "safe") {
+      return "bg-emerald-100 text-emerald-700";
+    }
+
+    if (cashRisk.level === "warning") {
+      return "bg-amber-100 text-amber-700";
+    }
+
+    return "bg-red-100 text-red-700";
   }
 
   return (
@@ -332,11 +417,9 @@ export default function UploadArea() {
 
       {summary && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              재무 요약
-            </h3>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            재무 요약
+          </h3>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -374,6 +457,24 @@ export default function UploadArea() {
               </p>
             </div>
           </div>
+
+          {latestBalance !== null && (
+            <div className="mt-4 rounded-lg bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">
+                최근 거래 기준 잔액
+              </p>
+
+              <p
+                className={`mt-1 text-lg font-bold ${
+                  latestBalance >= 0
+                    ? "text-slate-900"
+                    : "text-red-700"
+                }`}
+              >
+                {formatCurrency(latestBalance)}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -393,7 +494,9 @@ export default function UploadArea() {
                   <th className="px-4 py-3 text-right">
                     순현금흐름
                   </th>
-                  <th className="px-4 py-3 text-right">거래 건수</th>
+                  <th className="px-4 py-3 text-right">
+                    거래 건수
+                  </th>
                 </tr>
               </thead>
 
@@ -412,7 +515,13 @@ export default function UploadArea() {
                       {formatCurrency(item.expense)}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-semibold text-blue-700">
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${
+                        item.netCashFlow >= 0
+                          ? "text-blue-700"
+                          : "text-red-700"
+                      }`}
+                    >
                       {formatSignedCurrency(item.netCashFlow)}
                     </td>
 
@@ -429,16 +538,9 @@ export default function UploadArea() {
 
       {recurringTransactions.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              반복 거래 분석
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              여러 달에 반복된 거래를 탐지해 향후 현금흐름 예측 후보로
-              분류했습니다.
-            </p>
-          </div>
+          <h3 className="mb-3 font-semibold text-slate-900">
+            반복 거래 분석
+          </h3>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full min-w-[850px] text-left text-sm">
@@ -463,7 +565,7 @@ export default function UploadArea() {
                   <tr
                     key={`${item.description}-${item.type}-${index}`}
                   >
-                    <td className="px-4 py-3 font-medium text-slate-900">
+                    <td className="px-4 py-3 font-medium">
                       {item.description}
                     </td>
 
@@ -489,22 +591,196 @@ export default function UploadArea() {
                     </td>
 
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          item.confidence === "high"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700"
-                        }`}
-                      >
-                        {item.confidence === "high"
-                          ? "높음"
-                          : "보통"}
-                      </span>
+                      {item.confidence === "high" ? "높음" : "보통"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {forecasts.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              3개월 현금흐름 Forecast
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              반복 거래 평균과 최근 잔액을 기준으로 예상 월말 잔액까지
+              계산했습니다.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[950px] text-left text-sm">
+              <thead className="bg-blue-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 font-medium">예상월</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    시작 잔액
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    예상 입금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    예상 출금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    예상 순현금흐름
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    예상 월말 잔액
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {forecasts.map((forecast) => (
+                  <tr key={forecast.month}>
+                    <td className="px-4 py-3 font-semibold">
+                      {formatMonth(forecast.month)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      {formatCurrency(forecast.startingBalance)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-emerald-700">
+                      {formatCurrency(forecast.expectedIncome)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right text-red-700">
+                      {formatCurrency(forecast.expectedExpense)}
+                    </td>
+
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${
+                        forecast.expectedNetCashFlow >= 0
+                          ? "text-blue-700"
+                          : "text-red-700"
+                      }`}
+                    >
+                      {formatSignedCurrency(
+                        forecast.expectedNetCashFlow,
+                      )}
+                    </td>
+
+                    <td
+                      className={`px-4 py-3 text-right font-bold ${
+                        forecast.expectedEndingBalance >= 0
+                          ? "text-slate-900"
+                          : "text-red-700"
+                      }`}
+                    >
+                      {formatCurrency(
+                        forecast.expectedEndingBalance,
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {cashRisk && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              현금 위험 분석
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Forecast를 기준으로 향후 자금 부족 가능성을 분석했습니다.
+            </p>
+          </div>
+
+          <div
+            className={`rounded-xl border p-5 ${getCashRiskCardStyle()}`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-slate-600">
+                  위험 수준
+                </p>
+
+                <div className="mt-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-sm font-semibold ${getCashRiskBadgeStyle()}`}
+                  >
+                    {getCashRiskLabel()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm text-slate-600">
+                  예상 자금 부족 기간
+                </p>
+
+                <p className="mt-1 text-xl font-bold text-slate-900">
+                  {cashRisk.negativeMonthCount}개월
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-white/70 p-4">
+                <p className="text-sm text-slate-500">
+                  최저 예상 잔액
+                </p>
+
+                <p
+                  className={`mt-1 font-bold ${
+                    cashRisk.lowestBalance >= 0
+                      ? "text-slate-900"
+                      : "text-red-700"
+                  }`}
+                >
+                  {formatCurrency(cashRisk.lowestBalance)}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/70 p-4">
+                <p className="text-sm text-slate-500">
+                  최저 잔액 예상월
+                </p>
+
+                <p className="mt-1 font-bold text-slate-900">
+                  {formatMonth(cashRisk.lowestBalanceMonth)}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/70 p-4">
+                <p className="text-sm text-slate-500">
+                  회복 예상월
+                </p>
+
+                <p className="mt-1 font-bold text-slate-900">
+                  {cashRisk.recoveryMonth
+                    ? formatMonth(cashRisk.recoveryMonth)
+                    : "예측기간 내 없음"}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/70 p-4">
+                <p className="text-sm text-slate-500">
+                  필요 현금 버퍼
+                </p>
+
+                <p className="mt-1 font-bold text-red-700">
+                  {formatCurrency(cashRisk.requiredCashBuffer)}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-5 text-sm leading-6 text-slate-700">
+              {cashRisk.message}
+            </p>
           </div>
         </div>
       )}
@@ -521,7 +797,9 @@ export default function UploadArea() {
                 <tr>
                   <th className="px-4 py-3 text-left">카테고리</th>
                   <th className="px-4 py-3 text-right">지출액</th>
-                  <th className="px-4 py-3 text-right">지출 비중</th>
+                  <th className="px-4 py-3 text-right">
+                    지출 비중
+                  </th>
                 </tr>
               </thead>
 
@@ -654,9 +932,11 @@ export default function UploadArea() {
                     className="border-t border-slate-200"
                   >
                     <td className="px-4 py-3">{item.date}</td>
+
                     <td className="px-4 py-3">
                       {item.description}
                     </td>
+
                     <td className="px-4 py-3">
                       {item.categoryName}
                     </td>
@@ -690,9 +970,17 @@ export default function UploadArea() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left">원본 컬럼</th>
-                  <th className="px-4 py-3 text-left">인식 결과</th>
-                  <th className="px-4 py-3 text-left">신뢰도</th>
+                  <th className="px-4 py-3 text-left">
+                    원본 컬럼
+                  </th>
+
+                  <th className="px-4 py-3 text-left">
+                    인식 결과
+                  </th>
+
+                  <th className="px-4 py-3 text-left">
+                    신뢰도
+                  </th>
                 </tr>
               </thead>
 
