@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import * as XLSX from "xlsx";
 
 import {
@@ -48,6 +48,7 @@ import {
 } from "../services/forecastEngine";
 
 import type { CashRiskAnalysis } from "../services/cashRiskAnalyzer";
+import type { ScheduledTransaction } from "../services/scheduledTransaction";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -234,6 +235,17 @@ export default function UploadArea() {
 
   const [latestBalance, setLatestBalance] = useState<number | null>(null);
 
+  const [scheduledTransactions, setScheduledTransactions] = useState<
+    ScheduledTransaction[]
+  >([]);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledDescription, setScheduledDescription] = useState("");
+  const [scheduledType, setScheduledType] = useState<
+    ScheduledTransaction["type"]
+  >("expense");
+  const [scheduledAmount, setScheduledAmount] = useState("");
+  const [scheduledError, setScheduledError] = useState("");
+
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
   const [amountWarningCounts, setAmountWarningCounts] =
@@ -261,6 +273,12 @@ export default function UploadArea() {
     setForecasts([]);
     setCashRisk(null);
     setLatestBalance(null);
+    setScheduledTransactions([]);
+    setScheduledDate("");
+    setScheduledDescription("");
+    setScheduledType("expense");
+    setScheduledAmount("");
+    setScheduledError("");
     setInvalidDateCount(0);
     setAmountWarningCounts({
       invalidAmountCount: 0,
@@ -268,6 +286,79 @@ export default function UploadArea() {
       directionConflictCount: 0,
       columnConflictCount: 0,
     });
+  }
+
+  function recalculateForecast(
+    nextScheduledTransactions: ScheduledTransaction[],
+  ) {
+    const analysis = createForecastAnalysis(
+      recurringTransactions,
+      latestBalance,
+      nextScheduledTransactions,
+    );
+
+    setForecasts(analysis.forecasts);
+    setCashRisk(analysis.cashRisk);
+  }
+
+  function handleScheduledTransactionSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setScheduledError("");
+
+    const description = scheduledDescription.trim();
+    const amount = Number(scheduledAmount);
+    const scheduledMonth = scheduledDate.slice(0, 7);
+    const forecastMonths = forecasts.map((forecast) => forecast.month);
+
+    if (!scheduledDate || !description || scheduledAmount.trim() === "") {
+      setScheduledError("예정일, 내용, 금액을 모두 입력해주세요.");
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setScheduledError("금액은 0원보다 큰 숫자로 입력해주세요.");
+      return;
+    }
+
+    if (!forecastMonths.includes(scheduledMonth)) {
+      setScheduledError(
+        `예정일은 Forecast 기간(${forecastMonths
+          .map(formatMonth)
+          .join(", ")}) 안에서 선택해주세요.`,
+      );
+      return;
+    }
+
+    const scheduledTransaction: ScheduledTransaction = {
+      id: crypto.randomUUID(),
+      date: scheduledDate,
+      description,
+      type: scheduledType,
+      amount,
+    };
+    const nextScheduledTransactions = [
+      ...scheduledTransactions,
+      scheduledTransaction,
+    ];
+
+    setScheduledTransactions(nextScheduledTransactions);
+    recalculateForecast(nextScheduledTransactions);
+    setScheduledDate("");
+    setScheduledDescription("");
+    setScheduledType("expense");
+    setScheduledAmount("");
+  }
+
+  function handleScheduledTransactionRemove(id: string) {
+    const nextScheduledTransactions = scheduledTransactions.filter(
+      (transaction) => transaction.id !== id,
+    );
+
+    setScheduledTransactions(nextScheduledTransactions);
+    recalculateForecast(nextScheduledTransactions);
+    setScheduledError("");
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -774,17 +865,160 @@ export default function UploadArea() {
         <div className="mt-6">
           <div className="mb-3">
             <h3 className="font-semibold text-slate-900">
+              확정 예정 거래
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              향후 3개월 안에 확정된 입금이나 출금을 추가하면 Forecast와
+              현금 위험도가 바로 다시 계산됩니다.
+            </p>
+          </div>
+
+          <form
+            className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+            onSubmit={handleScheduledTransactionSubmit}
+          >
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <label className="text-sm font-medium text-slate-700">
+                예정일
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(event) => setScheduledDate(event.target.value)}
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-slate-700 lg:col-span-2">
+                내용
+                <input
+                  type="text"
+                  value={scheduledDescription}
+                  onChange={(event) =>
+                    setScheduledDescription(event.target.value)
+                  }
+                  placeholder="예: 거래처 대금 입금"
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+                입금/출금
+                <select
+                  value={scheduledType}
+                  onChange={(event) =>
+                    setScheduledType(
+                      event.target.value as ScheduledTransaction["type"],
+                    )
+                  }
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                >
+                  <option value="income">입금</option>
+                  <option value="expense">출금</option>
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+                금액
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={scheduledAmount}
+                  onChange={(event) => setScheduledAmount(event.target.value)}
+                  placeholder="0"
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-right text-slate-900"
+                />
+              </label>
+            </div>
+
+            {scheduledError && (
+              <p className="mt-3 text-sm font-medium text-red-700" role="alert">
+                {scheduledError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              추가
+            </button>
+          </form>
+
+          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+            {scheduledTransactions.length === 0 ? (
+              <p className="bg-white px-4 py-5 text-sm text-slate-500">
+                추가된 확정 예정 거래가 없습니다.
+              </p>
+            ) : (
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">예정일</th>
+                    <th className="px-4 py-3 font-medium">내용</th>
+                    <th className="px-4 py-3 font-medium">유형</th>
+                    <th className="px-4 py-3 text-right font-medium">금액</th>
+                    <th className="px-4 py-3 text-right font-medium">관리</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {[...scheduledTransactions]
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td className="px-4 py-3">{transaction.date}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {transaction.description}
+                        </td>
+                        <td className="px-4 py-3">
+                          {transaction.type === "income" ? "입금" : "출금"}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${
+                            transaction.type === "income"
+                              ? "text-emerald-700"
+                              : "text-red-700"
+                          }`}
+                        >
+                          {formatCurrency(transaction.amount)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleScheduledTransactionRemove(transaction.id)
+                            }
+                            className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-50"
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {forecasts.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
               3개월 현금흐름 Forecast
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              반복 거래 평균과 최근 잔액을 기준으로 예상 월말 잔액까지
-              계산했습니다.
+              반복 거래 평균, 확정 예정 거래와 최근 잔액을 기준으로 예상
+              월말 잔액까지 계산했습니다.
             </p>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[950px] text-left text-sm">
+            <table className="w-full min-w-[1250px] text-left text-sm">
               <thead className="bg-blue-50 text-slate-700">
                 <tr>
                   <th className="px-4 py-3 font-medium">예상월</th>
@@ -792,10 +1026,16 @@ export default function UploadArea() {
                     시작 잔액
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
-                    예상 입금
+                    기본 반복 예상 입금
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
-                    예상 출금
+                    예정 입금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    기본 반복 예상 출금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    예정 출금
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
                     예상 순현금흐름
@@ -818,11 +1058,19 @@ export default function UploadArea() {
                     </td>
 
                     <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatCurrency(forecast.expectedIncome)}
+                      {formatCurrency(forecast.recurringIncome)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">
+                      {formatCurrency(forecast.scheduledIncome)}
                     </td>
 
                     <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(forecast.expectedExpense)}
+                      {formatCurrency(forecast.recurringExpense)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right font-semibold text-red-700">
+                      {formatCurrency(forecast.scheduledExpense)}
                     </td>
 
                     <td

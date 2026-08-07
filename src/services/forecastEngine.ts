@@ -1,5 +1,6 @@
 import type { RecurringTransaction } from "./recurringTransactionDetector";
 import type { Transaction } from "./transactionParser";
+import type { ScheduledTransaction } from "./scheduledTransaction";
 import {
   analyzeCashRisk,
   type CashRiskAnalysis,
@@ -8,7 +9,12 @@ import {
 export interface MonthlyForecast {
   month: string;
 
+  recurringIncome: number;
+  scheduledIncome: number;
   expectedIncome: number;
+
+  recurringExpense: number;
+  scheduledExpense: number;
   expectedExpense: number;
   expectedNetCashFlow: number;
 
@@ -64,6 +70,7 @@ export function generateCashFlowForecast(
   recurringTransactions: RecurringTransaction[],
   startingBalance: number,
   forecastMonths = 3,
+  scheduledTransactions: ScheduledTransaction[] = [],
 ): MonthlyForecast[] {
   if (recurringTransactions.length === 0) {
     return [];
@@ -91,26 +98,23 @@ export function generateCashFlowForecast(
     return [];
   }
 
-  let expectedIncome = 0;
-  let expectedExpense = 0;
+  let recurringIncome = 0;
+  let recurringExpense = 0;
 
   let recurringIncomeCount = 0;
   let recurringExpenseCount = 0;
 
   for (const transaction of recurringTransactions) {
     if (transaction.type === "income") {
-      expectedIncome += transaction.averageAmount;
+      recurringIncome += transaction.averageAmount;
       recurringIncomeCount += 1;
     }
 
     if (transaction.type === "expense") {
-      expectedExpense += transaction.averageAmount;
+      recurringExpense += transaction.averageAmount;
       recurringExpenseCount += 1;
     }
   }
-
-  const expectedNetCashFlow =
-    expectedIncome - expectedExpense;
 
   const forecasts: MonthlyForecast[] = [];
 
@@ -129,13 +133,43 @@ export function generateCashFlowForecast(
 
     const monthStartingBalance = projectedBalance;
 
+    const forecastMonth = formatMonth(target.year, target.month);
+    const monthlyScheduledTransactions = scheduledTransactions.filter(
+      (transaction) => transaction.date.slice(0, 7) === forecastMonth,
+    );
+
+    const scheduledIncome = monthlyScheduledTransactions.reduce(
+      (total, transaction) =>
+        transaction.type === "income"
+          ? total + transaction.amount
+          : total,
+      0,
+    );
+
+    const scheduledExpense = monthlyScheduledTransactions.reduce(
+      (total, transaction) =>
+        transaction.type === "expense"
+          ? total + transaction.amount
+          : total,
+      0,
+    );
+
+    const expectedIncome = recurringIncome + scheduledIncome;
+    const expectedExpense = recurringExpense + scheduledExpense;
+    const expectedNetCashFlow = expectedIncome - expectedExpense;
+
     projectedBalance =
       monthStartingBalance + expectedNetCashFlow;
 
     forecasts.push({
-      month: formatMonth(target.year, target.month),
+      month: forecastMonth,
 
+      recurringIncome,
+      scheduledIncome,
       expectedIncome,
+
+      recurringExpense,
+      scheduledExpense,
       expectedExpense,
       expectedNetCashFlow,
 
@@ -153,6 +187,7 @@ export function generateCashFlowForecast(
 export function createForecastAnalysis(
   recurringTransactions: RecurringTransaction[],
   currentBalance: number | null,
+  scheduledTransactions: ScheduledTransaction[] = [],
 ): {
   forecasts: MonthlyForecast[];
   cashRisk: CashRiskAnalysis | null;
@@ -168,6 +203,7 @@ export function createForecastAnalysis(
     recurringTransactions,
     currentBalance,
     3,
+    scheduledTransactions,
   );
 
   return {
