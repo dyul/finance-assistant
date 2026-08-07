@@ -1,4 +1,7 @@
-import type { Transaction } from "./transactionParser";
+import {
+  hasResolvedTransactionAmount,
+  type Transaction,
+} from "./transactionParser";
 
 export interface CategorySummary {
   category: string;
@@ -11,9 +14,9 @@ export interface CategorySummary {
 export function aggregateExpensesByCategory(
   transactions: Transaction[],
 ): CategorySummary[] {
-  const expenseTransactions = transactions.filter(
-    (transaction) => transaction.expense > 0,
-  );
+  const expenseTransactions = transactions
+    .filter(hasResolvedTransactionAmount)
+    .filter((transaction) => transaction.expense > 0);
 
   const totalExpense = expenseTransactions.reduce(
     (sum, transaction) => sum + transaction.expense,

@@ -64,11 +64,85 @@ export function InvalidDateWarning({ count }: { count: number }) {
       </p>
 
       <p className="mt-1 text-sm leading-6 text-amber-800">
-        해당 거래의 금액은 전체 입출금과 전체 거래 건수에는
-        포함되지만, 월별 분석·반복 거래·최신 잔액·예측에서는
-        제외됩니다. 따라서 전체 합계와 월별 합계가 다를 수
-        있습니다.
+        금액을 정상적으로 확인할 수 있는 해당 거래는 전체
+        입출금과 전체 거래 건수에는 포함되지만, 월별 분석·반복
+        거래·최신 잔액·예측에서는 제외됩니다. 따라서 전체 합계와
+        월별 합계가 다를 수 있습니다.
       </p>
+    </div>
+  );
+}
+
+interface AmountWarningCounts {
+  invalidAmountCount: number;
+  unknownDirectionCount: number;
+  directionConflictCount: number;
+  columnConflictCount: number;
+}
+
+function formatOriginalAmountValues(
+  values: Transaction["originalAmountValues"],
+): string {
+  return [
+    `입금 ${values.income ?? "없음"}`,
+    `출금 ${values.expense ?? "없음"}`,
+    `금액 ${values.amount ?? "없음"}`,
+    `구분 ${values.direction ?? "없음"}`,
+  ].join(", ");
+}
+
+function formatCurrency(value: number): string {
+  const roundedValue = Math.round(value);
+  const formattedValue = Math.abs(roundedValue).toLocaleString("ko-KR");
+
+  return roundedValue < 0
+    ? `-${formattedValue}원`
+    : `${formattedValue}원`;
+}
+
+export function InvalidAmountWarning({
+  invalidAmountCount,
+  unknownDirectionCount,
+  directionConflictCount,
+  columnConflictCount,
+}: AmountWarningCounts) {
+  const excludedCount =
+    invalidAmountCount +
+    unknownDirectionCount +
+    directionConflictCount;
+
+  if (excludedCount === 0 && columnConflictCount === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
+      role="status"
+    >
+      {excludedCount > 0 && (
+        <>
+          <p className="font-semibold text-amber-900">
+            금액 계산에서 제외된 거래 {excludedCount}건
+          </p>
+
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            금액 오류 {invalidAmountCount}건, 방향 미확정{" "}
+            {unknownDirectionCount}건, 방향 충돌{" "}
+            {directionConflictCount}건입니다. 전체 거래 건수에는 포함되지만
+            입출금 합계·평균·월별·카테고리·반복 거래 분석에서는 제외됩니다.
+          </p>
+        </>
+      )}
+
+      {columnConflictCount > 0 && (
+        <p
+          className={`${excludedCount > 0 ? "mt-2" : ""} text-sm leading-6 text-amber-800`}
+        >
+          분리 컬럼과 단일 금액이 다른 거래 {columnConflictCount}건은
+          분리 입금·출금 컬럼 값을 우선 적용했습니다.
+        </p>
+      )}
     </div>
   );
 }
@@ -84,6 +158,48 @@ export function TransactionDateValue({
     <span className="font-medium text-amber-700">
       날짜 확인 필요
     </span>
+  );
+}
+
+type TransactionAmountCellsProps = Pick<
+  Transaction,
+  "income" | "expense" | "amountStatus" | "originalAmountValues"
+>;
+
+export function TransactionAmountCells(
+  item: TransactionAmountCellsProps,
+) {
+  if (item.income === null || item.expense === null) {
+    return (
+      <td
+        className="px-4 py-3 text-right text-amber-700"
+        colSpan={2}
+      >
+        <p className="font-medium">
+          {item.amountStatus === "unknownDirection"
+            ? "입출금 구분 확인 필요"
+            : item.amountStatus === "directionConflict"
+              ? "금액과 입출금 구분 확인 필요"
+              : "금액 확인 필요"}
+        </p>
+
+        <p className="mt-1 text-xs text-amber-600">
+          원본: {formatOriginalAmountValues(item.originalAmountValues)}
+        </p>
+      </td>
+    );
+  }
+
+  return (
+    <>
+      <td className="px-4 py-3 text-right text-emerald-700">
+        {item.income > 0 ? formatCurrency(item.income) : "-"}
+      </td>
+
+      <td className="px-4 py-3 text-right text-red-700">
+        {item.expense > 0 ? formatCurrency(item.expense) : "-"}
+      </td>
+    </>
   );
 }
 
@@ -120,6 +236,14 @@ export default function UploadArea() {
 
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
+  const [amountWarningCounts, setAmountWarningCounts] =
+    useState<AmountWarningCounts>({
+      invalidAmountCount: 0,
+      unknownDirectionCount: 0,
+      directionConflictCount: 0,
+      columnConflictCount: 0,
+    });
+
   const [error, setError] = useState("");
 
   function resetFileInfo() {
@@ -138,6 +262,12 @@ export default function UploadArea() {
     setCashRisk(null);
     setLatestBalance(null);
     setInvalidDateCount(0);
+    setAmountWarningCounts({
+      invalidAmountCount: 0,
+      unknownDirectionCount: 0,
+      directionConflictCount: 0,
+      columnConflictCount: 0,
+    });
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -277,6 +407,12 @@ export default function UploadArea() {
       setRecurringTransactions(recurringResults);
       setLatestBalance(currentBalance);
       setInvalidDateCount(parsedResult.invalidDateCount);
+      setAmountWarningCounts({
+        invalidAmountCount: parsedResult.invalidAmountCount,
+        unknownDirectionCount: parsedResult.unknownDirectionCount,
+        directionConflictCount: parsedResult.directionConflictCount,
+        columnConflictCount: parsedResult.columnConflictCount,
+      });
       setForecasts(forecastResults);
       setCashRisk(riskAnalysis);
     } catch (caughtError) {
@@ -314,15 +450,6 @@ export default function UploadArea() {
     }
 
     return "bg-red-50 text-red-700";
-  }
-
-  function formatCurrency(value: number): string {
-    const roundedValue = Math.round(value);
-    const formattedValue = Math.abs(roundedValue).toLocaleString("ko-KR");
-
-    return roundedValue < 0
-      ? `-${formattedValue}원`
-      : `${formattedValue}원`;
   }
 
   function formatSignedCurrency(value: number): string {
@@ -517,6 +644,8 @@ export default function UploadArea() {
       )}
 
       <InvalidDateWarning count={invalidDateCount} />
+
+      <InvalidAmountWarning {...amountWarningCounts} />
 
       {monthlySummaries.length > 0 && (
         <div className="mt-6">
@@ -977,23 +1106,19 @@ export default function UploadArea() {
 
                     <td className="px-4 py-3">
                       {item.description}
+
+                      {item.amountStatus === "columnConflict" && (
+                        <p className="mt-1 text-xs font-medium text-amber-700">
+                          단일 금액과 불일치 — 분리 컬럼 적용
+                        </p>
+                      )}
                     </td>
 
                     <td className="px-4 py-3">
                       {item.categoryName}
                     </td>
 
-                    <td className="px-4 py-3 text-right text-emerald-700">
-                      {item.income > 0
-                        ? formatCurrency(item.income)
-                        : "-"}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-red-700">
-                      {item.expense > 0
-                        ? formatCurrency(item.expense)
-                        : "-"}
-                    </td>
+                    <TransactionAmountCells {...item} />
                   </tr>
                 ))}
               </tbody>

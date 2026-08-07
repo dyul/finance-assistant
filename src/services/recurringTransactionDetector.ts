@@ -1,4 +1,7 @@
-import type { Transaction } from "./transactionParser";
+import {
+  hasResolvedTransactionAmount,
+  type Transaction,
+} from "./transactionParser";
 
 export type RecurringTransactionType = "income" | "expense";
 
@@ -76,6 +79,10 @@ export function detectRecurringTransactions(
 
   for (const transaction of transactions) {
     if (transaction.date === null) {
+      continue;
+    }
+
+    if (!hasResolvedTransactionAmount(transaction)) {
       continue;
     }
 

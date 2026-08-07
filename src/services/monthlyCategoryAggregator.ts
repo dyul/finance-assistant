@@ -1,4 +1,7 @@
-import type { Transaction } from "./transactionParser";
+import {
+  hasResolvedTransactionAmount,
+  type Transaction,
+} from "./transactionParser";
 
 export interface MonthlyCategorySummary {
   month: string;
@@ -12,9 +15,9 @@ export interface MonthlyCategorySummary {
 export function aggregateMonthlyExpensesByCategory(
   transactions: Transaction[],
 ): MonthlyCategorySummary[] {
-  const expenseTransactions = transactions.filter(
-    (transaction) => transaction.expense > 0,
-  );
+  const expenseTransactions = transactions
+    .filter(hasResolvedTransactionAmount)
+    .filter((transaction) => transaction.expense > 0);
 
   const monthlyExpenseTotals = new Map<string, number>();
   const summaryMap = new Map<string, MonthlyCategorySummary>();

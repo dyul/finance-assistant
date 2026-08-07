@@ -4,12 +4,23 @@ import {
   type DateNormalizationOptions,
   type NormalizedDate,
 } from "./dateNormalizer";
+import {
+  hasSignedAmountEvidence,
+  isResolvedAmount,
+  resolveTransactionAmount,
+  type AmountSource,
+  type AmountStatus,
+  type OriginalAmountValues,
+} from "./amountNormalizer";
 
 export interface Transaction {
   date: NormalizedDate | null;
   description: string;
-  income: number;
-  expense: number;
+  income: number | null;
+  expense: number | null;
+  amountStatus: AmountStatus;
+  amountSource: AmountSource;
+  originalAmountValues: OriginalAmountValues;
   balance: number;
   category: string;
   categoryName: string;
@@ -21,6 +32,25 @@ export interface ParsedTransactionResult {
   totalIncome: number;
   totalExpense: number;
   invalidDateCount: number;
+  invalidAmountCount: number;
+  unknownDirectionCount: number;
+  directionConflictCount: number;
+  columnConflictCount: number;
+}
+
+export type ResolvedAmountTransaction = Transaction & {
+  amountStatus: "valid" | "columnConflict";
+  income: number;
+  expense: number;
+};
+
+export function hasResolvedTransactionAmount(
+  transaction: Transaction,
+): transaction is ResolvedAmountTransaction {
+  return (
+    transaction.amountStatus === "valid" ||
+    transaction.amountStatus === "columnConflict"
+  );
 }
 
 function toNumber(value: unknown): number {
@@ -44,12 +74,21 @@ export function parseTransactions(
   let totalIncome = 0;
   let totalExpense = 0;
   let invalidDateCount = 0;
+  let invalidAmountCount = 0;
+  let unknownDirectionCount = 0;
+  let directionConflictCount = 0;
+  let columnConflictCount = 0;
+  const signedAmountEvidence = hasSignedAmountEvidence(rows);
 
   for (const row of rows) {
     const description = String(row.description ?? "");
     const classification = classifyTransaction(description);
 
     const date = normalizeTransactionDate(row.date, options);
+    const amountResolution = resolveTransactionAmount(
+      row,
+      signedAmountEvidence,
+    );
 
     if (date === null) {
       invalidDateCount += 1;
@@ -58,16 +97,31 @@ export function parseTransactions(
     const transaction: Transaction = {
       date,
       description,
-      income: toNumber(row.income),
-      expense: toNumber(row.expense),
+      income: amountResolution.income,
+      expense: amountResolution.expense,
+      amountStatus: amountResolution.amountStatus,
+      amountSource: amountResolution.amountSource,
+      originalAmountValues: amountResolution.originalAmountValues,
       balance: toNumber(row.balance),
       category: classification.category,
       categoryName: classification.displayName,
       confidence: classification.confidence,
     };
 
-    totalIncome += transaction.income;
-    totalExpense += transaction.expense;
+    if (isResolvedAmount(amountResolution)) {
+      totalIncome += amountResolution.income;
+      totalExpense += amountResolution.expense;
+    }
+
+    if (amountResolution.amountStatus === "invalidAmount") {
+      invalidAmountCount += 1;
+    } else if (amountResolution.amountStatus === "unknownDirection") {
+      unknownDirectionCount += 1;
+    } else if (amountResolution.amountStatus === "directionConflict") {
+      directionConflictCount += 1;
+    } else if (amountResolution.amountStatus === "columnConflict") {
+      columnConflictCount += 1;
+    }
 
     transactions.push(transaction);
   }
@@ -77,5 +131,9 @@ export function parseTransactions(
     totalIncome,
     totalExpense,
     invalidDateCount,
+    invalidAmountCount,
+    unknownDirectionCount,
+    directionConflictCount,
+    columnConflictCount,
   };
 }

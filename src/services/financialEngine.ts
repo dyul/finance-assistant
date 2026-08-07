@@ -1,10 +1,14 @@
-import type { Transaction } from "./transactionParser";
+import {
+  hasResolvedTransactionAmount,
+  type Transaction,
+} from "./transactionParser";
 
 export interface FinancialSummary {
   totalIncome: number;
   totalExpense: number;
   netCashFlow: number;
   transactionCount: number;
+  validAmountTransactionCount: number;
   averageTransactionAmount: number;
   largestIncome: number;
   largestExpense: number;
@@ -13,36 +17,40 @@ export interface FinancialSummary {
 export function calculateFinancialSummary(
   transactions: Transaction[],
 ): FinancialSummary {
-  const totalIncome = transactions.reduce(
+  const validAmountTransactions = transactions.filter(
+    hasResolvedTransactionAmount,
+  );
+  const totalIncome = validAmountTransactions.reduce(
     (sum, transaction) => sum + transaction.income,
     0,
   );
 
-  const totalExpense = transactions.reduce(
+  const totalExpense = validAmountTransactions.reduce(
     (sum, transaction) => sum + transaction.expense,
     0,
   );
 
   const transactionCount = transactions.length;
+  const validAmountTransactionCount = validAmountTransactions.length;
 
-  const totalTransactionAmount = transactions.reduce(
+  const totalTransactionAmount = validAmountTransactions.reduce(
     (sum, transaction) =>
       sum + transaction.income + transaction.expense,
     0,
   );
 
   const averageTransactionAmount =
-    transactionCount > 0
-      ? totalTransactionAmount / transactionCount
+    validAmountTransactionCount > 0
+      ? totalTransactionAmount / validAmountTransactionCount
       : 0;
 
-  const largestIncome = transactions.reduce(
+  const largestIncome = validAmountTransactions.reduce(
     (largest, transaction) =>
       Math.max(largest, transaction.income),
     0,
   );
 
-  const largestExpense = transactions.reduce(
+  const largestExpense = validAmountTransactions.reduce(
     (largest, transaction) =>
       Math.max(largest, transaction.expense),
     0,
@@ -53,6 +61,7 @@ export function calculateFinancialSummary(
     totalExpense,
     netCashFlow: totalIncome - totalExpense,
     transactionCount,
+    validAmountTransactionCount,
     averageTransactionAmount,
     largestIncome,
     largestExpense,
