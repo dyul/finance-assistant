@@ -36,6 +36,7 @@ describe("UploadArea 날짜 오류 안내", () => {
         invalidAmountCount={1}
         unknownDirectionCount={2}
         directionConflictCount={3}
+        directionOverrideCount={5}
         columnConflictCount={4}
       />,
     );
@@ -46,6 +47,8 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("방향 충돌 3건");
     expect(markup).toContain("다른 거래 4건");
     expect(markup).toContain("분리 입금·출금 컬럼 값을 우선");
+    expect(markup).toContain("입출금 구분이 다른 거래 5건");
+    expect(markup).toContain("명시된 입출금 구분을 우선");
   });
 
   it("금액 경고가 없으면 안내를 표시하지 않는다", () => {
@@ -55,6 +58,7 @@ describe("UploadArea 날짜 오류 안내", () => {
           invalidAmountCount={0}
           unknownDirectionCount={0}
           directionConflictCount={0}
+          directionOverrideCount={0}
           columnConflictCount={0}
         />,
       ),
@@ -151,6 +155,17 @@ describe("UploadArea 날짜 오류 안내", () => {
         700_000,
         0,
       ]);
+
+      if (index === 2) {
+        rows.push([
+          new Date(2026, index, 15),
+          "장비구매",
+          0,
+          2_000_000,
+          0,
+        ]);
+      }
+
       rows.push([
         new Date(2026, index, 20),
         "전기요금",
@@ -197,6 +212,13 @@ describe("UploadArea 날짜 오류 안내", () => {
     );
 
     expect(parsed.invalidDateCount).toBe(0);
+    expect(parsed.totalIncome).toBe(2_850_000);
+    expect(parsed.totalExpense).toBe(4_347_000);
+    expect(parsed.totalIncome - parsed.totalExpense).toBe(-1_497_000);
+    expect(
+      recurringTransactions.map((transaction) => transaction.description),
+    ).toEqual(expect.arrayContaining(["월세", "전기요금", "상품판매"]));
+    expect(recurringTransactions).toHaveLength(3);
     expect(incomeTransaction?.monthlyAmounts).toEqual([
       { month: "2026-01", amount: 900_000 },
       { month: "2026-02", amount: 950_000 },

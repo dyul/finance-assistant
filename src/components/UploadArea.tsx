@@ -85,6 +85,7 @@ interface AmountWarningCounts {
   invalidAmountCount: number;
   unknownDirectionCount: number;
   directionConflictCount: number;
+  directionOverrideCount: number;
   columnConflictCount: number;
 }
 
@@ -112,6 +113,7 @@ export function InvalidAmountWarning({
   invalidAmountCount,
   unknownDirectionCount,
   directionConflictCount,
+  directionOverrideCount,
   columnConflictCount,
 }: AmountWarningCounts) {
   const excludedCount =
@@ -119,7 +121,11 @@ export function InvalidAmountWarning({
     unknownDirectionCount +
     directionConflictCount;
 
-  if (excludedCount === 0 && columnConflictCount === 0) {
+  if (
+    excludedCount === 0 &&
+    directionOverrideCount === 0 &&
+    columnConflictCount === 0
+  ) {
     return null;
   }
 
@@ -149,6 +155,15 @@ export function InvalidAmountWarning({
         >
           분리 컬럼과 단일 금액이 다른 거래 {columnConflictCount}건은
           분리 입금·출금 컬럼 값을 우선 적용했습니다.
+        </p>
+      )}
+
+      {directionOverrideCount > 0 && (
+        <p
+          className={`${excludedCount > 0 || columnConflictCount > 0 ? "mt-2" : ""} text-sm leading-6 text-amber-800`}
+        >
+          금액 부호와 입출금 구분이 다른 거래 {directionOverrideCount}건은
+          명시된 입출금 구분을 우선 적용했습니다.
         </p>
       )}
     </div>
@@ -272,6 +287,7 @@ export default function UploadArea() {
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
       directionConflictCount: 0,
+      directionOverrideCount: 0,
       columnConflictCount: 0,
     });
 
@@ -300,6 +316,7 @@ export default function UploadArea() {
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
       directionConflictCount: 0,
+      directionOverrideCount: 0,
       columnConflictCount: 0,
     });
   }
@@ -423,13 +440,13 @@ export default function UploadArea() {
         return;
       }
 
-      const mappings = mapColumns(columnNames);
-
       const objectRows =
         XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
           defval: "",
           range: headerRowIndex,
         });
+
+      const mappings = mapColumns(columnNames, objectRows);
 
       const standardizedRows = standardizeTransactionRows(
         objectRows,
@@ -478,6 +495,7 @@ export default function UploadArea() {
         invalidAmountCount: parsedResult.invalidAmountCount,
         unknownDirectionCount: parsedResult.unknownDirectionCount,
         directionConflictCount: parsedResult.directionConflictCount,
+        directionOverrideCount: parsedResult.directionOverrideCount,
         columnConflictCount: parsedResult.columnConflictCount,
       });
     } catch (caughtError) {
@@ -1092,6 +1110,12 @@ export default function UploadArea() {
                       {item.amountStatus === "columnConflict" && (
                         <p className="mt-1 text-xs font-medium text-amber-700">
                           단일 금액과 불일치 — 분리 컬럼 적용
+                        </p>
+                      )}
+
+                      {item.amountStatus === "directionOverride" && (
+                        <p className="mt-1 text-xs font-medium text-amber-700">
+                          금액 부호와 불일치 — 입출금 구분 적용
                         </p>
                       )}
                     </td>

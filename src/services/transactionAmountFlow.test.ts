@@ -9,6 +9,7 @@ import { aggregateMonthly } from "./monthlyAggregator";
 import { aggregateMonthlyExpensesByCategory } from "./monthlyCategoryAggregator";
 import { detectRecurringTransactions } from "./recurringTransactionDetector";
 import { parseTransactions } from "./transactionParser";
+import { standardizeTransactionRows } from "./transactionRowStandardizer";
 
 describe("단일 금액 거래 처리 흐름", () => {
   it("기존 분리 입금·출금 구조의 결과를 유지한다", () => {
@@ -37,6 +38,7 @@ describe("단일 금액 거래 처리 흐름", () => {
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
       directionConflictCount: 0,
+      directionOverrideCount: 0,
       columnConflictCount: 0,
     });
   });
@@ -53,6 +55,32 @@ describe("단일 금액 거래 처리 흐름", () => {
     ]);
   });
 
+  it("명시 방향과 부호가 다르면 방향을 적용하고 경고 상태를 집계한다", () => {
+    const parsed = parseTransactions([
+      { amount: "+1,000", direction: "출금" },
+      { amount: -500, direction: "입금" },
+    ]);
+
+    expect(parsed.transactions).toEqual([
+      expect.objectContaining({
+        amountStatus: "directionOverride",
+        income: 0,
+        expense: 1000,
+      }),
+      expect.objectContaining({
+        amountStatus: "directionOverride",
+        income: 500,
+        expense: 0,
+      }),
+    ]);
+    expect(parsed.directionOverrideCount).toBe(2);
+    expect(calculateFinancialSummary(parsed.transactions)).toMatchObject({
+      totalIncome: 500,
+      totalExpense: 1000,
+      netCashFlow: -500,
+    });
+  });
+
   it.each(["xlsx", "xls"] as const)(
     "%s 단일 금액 파일을 컬럼 매핑부터 파싱한다",
     (bookType) => {
@@ -60,9 +88,9 @@ describe("단일 금액 거래 처리 흐름", () => {
       XLSX.utils.book_append_sheet(
         workbook,
         XLSX.utils.aoa_to_sheet([
-          ["거래일", "적요", "금액", "입출금구분", "잔액"],
-          ["2024-01-01", "판매", 1000, "입금", 1000],
-          ["2024-01-02", "구독", 300, "출금", 700],
+          ["거래일", "적요", "거래구분", "금액", "잔액"],
+          ["2024-01-01", "상품판매",  "입금", 500000, 1500000],
+          ["2024-01-02", "월세", "출금", 700000, 800000],
         ]),
         "거래",
       );
@@ -76,24 +104,23 @@ describe("단일 금액 거래 처리 흐름", () => {
         sheet,
         { defval: "" },
       );
-      const mappings = mapColumns(Object.keys(objectRows[0]));
-      const standardizedRows = objectRows.map((row) => {
-        const standardized: Record<string, unknown> = {};
-
-        for (const mapping of mappings) {
-          if (mapping.standardName !== "unknown") {
-            standardized[mapping.standardName] = row[mapping.originalName];
-          }
-        }
-
-        return standardized;
-      });
+      const mappings = mapColumns(Object.keys(objectRows[0]), objectRows);
+      const standardizedRows = standardizeTransactionRows(
+        objectRows,
+        mappings,
+      );
       const parsed = parseTransactions(standardizedRows);
+      const summary = calculateFinancialSummary(parsed.transactions);
 
       expect(parsed.transactions).toEqual([
-        expect.objectContaining({ income: 1000, expense: 0 }),
-        expect.objectContaining({ income: 0, expense: 300 }),
+        expect.objectContaining({ income: 500000, expense: 0 }),
+        expect.objectContaining({ income: 0, expense: 700000 }),
       ]);
+      expect(summary).toMatchObject({
+        totalIncome: 500000,
+        totalExpense: 700000,
+        netCashFlow: -200000,
+      });
     },
   );
 
@@ -144,7 +171,8 @@ describe("단일 금액 거래 처리 흐름", () => {
     expect(parsed).toMatchObject({
       invalidAmountCount: 1,
       unknownDirectionCount: 1,
-      directionConflictCount: 2,
+      directionConflictCount: 1,
+      directionOverrideCount: 1,
       columnConflictCount: 0,
     });
   });
@@ -161,15 +189,15 @@ describe("단일 금액 거래 처리 흐름", () => {
 
     expect(summary).toMatchObject({
       transactionCount: 4,
-      validAmountTransactionCount: 2,
-      totalIncome: 100,
+      validAmountTransactionCount: 3,
+      totalIncome: 600,
       totalExpense: 0,
-      averageTransactionAmount: 50,
+      averageTransactionAmount: 200,
     });
     expect(monthly[0]).toMatchObject({
-      income: 100,
+      income: 600,
       expense: 0,
-      transactionCount: 2,
+      transactionCount: 3,
     });
   });
 
@@ -214,6 +242,36 @@ describe("단일 금액 거래 처리 흐름", () => {
 
     expect(parsed.invalidDateCount).toBe(1);
     expect(parsed.invalidAmountCount).toBe(1);
+  });
+
+  it("해석 불가능한 금액과 실제 0원을 구분해 합계를 보호한다", () => {
+    const parsed = parseTransactions([
+      { amount: "금액미정" },
+      { amount: "N/A" },
+      { amount: 0 },
+    ]);
+
+    expect(parsed.invalidAmountCount).toBe(2);
+    expect(parsed.transactions[0]).toMatchObject({
+      amountStatus: "invalidAmount",
+      income: null,
+      expense: null,
+    });
+    expect(parsed.transactions[1]).toMatchObject({
+      amountStatus: "invalidAmount",
+      income: null,
+      expense: null,
+    });
+    expect(parsed.transactions[2]).toMatchObject({
+      amountStatus: "valid",
+      income: 0,
+      expense: 0,
+    });
+    expect(calculateFinancialSummary(parsed.transactions)).toMatchObject({
+      totalIncome: 0,
+      totalExpense: 0,
+      validAmountTransactionCount: 1,
+    });
   });
 
   it("금액 오류 거래도 유효한 날짜가 있으면 최신 잔액 후보로 유지한다", () => {

@@ -3,6 +3,7 @@ export type AmountStatus =
   | "invalidAmount"
   | "unknownDirection"
   | "directionConflict"
+  | "directionOverride"
   | "columnConflict";
 
 export type AmountSource = "separate" | "single" | "unresolved";
@@ -21,7 +22,7 @@ export interface OriginalAmountValues {
 }
 
 interface ResolvedAmount {
-  amountStatus: "valid" | "columnConflict";
+  amountStatus: "valid" | "directionOverride" | "columnConflict";
   amountSource: "separate" | "single";
   income: number;
   expense: number;
@@ -135,7 +136,7 @@ export function parseMoney(value: unknown): ParsedMoney {
     return { kind: "invalid" };
   }
 
-  const normalized = value.trim();
+  const normalized = value.trim().replace(/\s*원\s*$/, "").trim();
   const parenthesesMatch = normalized.match(/^\((.+)\)$/);
 
   if (parenthesesMatch) {
@@ -263,7 +264,13 @@ function resolveSingleAmount(
       (direction.direction === "expense" &&
         amount.signEvidence === "explicitPositive")
     ) {
-      return unresolved("directionConflict", originalAmountValues);
+      return {
+        amountStatus: "directionOverride",
+        amountSource: "single",
+        income: direction.direction === "income" ? absoluteValue : 0,
+        expense: direction.direction === "expense" ? absoluteValue : 0,
+        originalAmountValues,
+      };
     }
 
     return {
@@ -287,6 +294,7 @@ function resolveSingleAmount(
 
   if (
     amount.signEvidence === "explicitPositive" ||
+    amount.signEvidence === "unsignedPositive" ||
     hasSignedAmountEvidence
   ) {
     return {
@@ -403,6 +411,7 @@ export function isResolvedAmount(
 ): amount is ResolvedAmount {
   return (
     amount.amountStatus === "valid" ||
+    amount.amountStatus === "directionOverride" ||
     amount.amountStatus === "columnConflict"
   );
 }

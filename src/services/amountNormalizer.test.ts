@@ -10,7 +10,11 @@ import {
 describe("amountNormalizer", () => {
   it.each([
     [-1000, "negative", -1000],
+    ["-700,000", "negative", -700000],
     ["(1,000)", "negative", -1000],
+    [" 500,000 ", "unsignedPositive", 500000],
+    ["500,000원", "unsignedPositive", 500000],
+    [" (700,000)원 ", "negative", -700000],
     ["+1,000", "explicitPositive", 1000],
     [1000, "unsignedPositive", 1000],
     [0, "zero", 0],
@@ -26,7 +30,7 @@ describe("amountNormalizer", () => {
     expect(parseMoney(input)).toEqual({ kind: "missing" });
   });
 
-  it.each(["1,00", "1원", "abc", Number.NaN, Infinity])(
+  it.each(["1,00", "금액1원", "abc", Number.NaN, Infinity])(
     "잘못된 금액 %s를 거부한다",
     (input) => {
       expect(parseMoney(input)).toEqual({ kind: "invalid" });
@@ -43,6 +47,7 @@ describe("amountNormalizer", () => {
     ["credit", "income"],
     ["cr", "income"],
     ["in", "income"],
+    [" IN ", "income"],
     ["출금", "expense"],
     ["지출", "expense"],
     ["비용", "expense"],
@@ -52,6 +57,7 @@ describe("amountNormalizer", () => {
     ["debit", "expense"],
     ["dr", "expense"],
     ["out", "expense"],
+    [" OUT ", "expense"],
   ])("방향값 %s를 %s으로 해석한다", (input, direction) => {
     expect(parseDirection(input)).toEqual({ kind: "valid", direction });
   });
@@ -68,13 +74,21 @@ describe("amountNormalizer", () => {
     ).toMatchObject({ amountStatus: "valid", income: 0, expense: 1000 });
   });
 
-  it("방향과 부호가 충돌하면 계산에서 제외한다", () => {
+  it("방향과 부호가 충돌하면 명시된 방향을 적용하고 상태를 남긴다", () => {
     expect(
       resolveTransactionAmount({ amount: -1000, direction: "입금" }, false),
-    ).toMatchObject({ amountStatus: "directionConflict", income: null });
+    ).toMatchObject({
+      amountStatus: "directionOverride",
+      income: 1000,
+      expense: 0,
+    });
     expect(
       resolveTransactionAmount({ amount: "+1000", direction: "출금" }, false),
-    ).toMatchObject({ amountStatus: "directionConflict", expense: null });
+    ).toMatchObject({
+      amountStatus: "directionOverride",
+      income: 0,
+      expense: 1000,
+    });
   });
 
   it("실제 0원을 정상 중립 거래로 처리한다", () => {
@@ -105,8 +119,18 @@ describe("amountNormalizer", () => {
     });
   });
 
-  it("부호 체계 증거가 없는 양수는 방향 미확정으로 둔다", () => {
+  it("방향이 없는 일반 양수 단일 금액을 입금으로 처리한다", () => {
     expect(resolveTransactionAmount({ amount: 500 }, false)).toMatchObject({
+      amountStatus: "valid",
+      income: 500,
+      expense: 0,
+    });
+  });
+
+  it("알 수 없는 방향은 양수여도 임의 분류하지 않는다", () => {
+    expect(
+      resolveTransactionAmount({ amount: 500, direction: "기타" }, false),
+    ).toMatchObject({
       amountStatus: "unknownDirection",
       income: null,
       expense: null,

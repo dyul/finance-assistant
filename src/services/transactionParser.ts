@@ -35,11 +35,12 @@ export interface ParsedTransactionResult {
   invalidAmountCount: number;
   unknownDirectionCount: number;
   directionConflictCount: number;
+  directionOverrideCount: number;
   columnConflictCount: number;
 }
 
 export type ResolvedAmountTransaction = Transaction & {
-  amountStatus: "valid" | "columnConflict";
+  amountStatus: "valid" | "directionOverride" | "columnConflict";
   income: number;
   expense: number;
 };
@@ -49,6 +50,7 @@ export function hasResolvedTransactionAmount(
 ): transaction is ResolvedAmountTransaction {
   return (
     transaction.amountStatus === "valid" ||
+    transaction.amountStatus === "directionOverride" ||
     transaction.amountStatus === "columnConflict"
   );
 }
@@ -77,6 +79,7 @@ export function parseTransactions(
   let invalidAmountCount = 0;
   let unknownDirectionCount = 0;
   let directionConflictCount = 0;
+  let directionOverrideCount = 0;
   let columnConflictCount = 0;
   const signedAmountEvidence = hasSignedAmountEvidence(rows);
 
@@ -119,6 +122,8 @@ export function parseTransactions(
       unknownDirectionCount += 1;
     } else if (amountResolution.amountStatus === "directionConflict") {
       directionConflictCount += 1;
+    } else if (amountResolution.amountStatus === "directionOverride") {
+      directionOverrideCount += 1;
     } else if (amountResolution.amountStatus === "columnConflict") {
       columnConflictCount += 1;
     }
@@ -134,6 +139,7 @@ export function parseTransactions(
     invalidAmountCount,
     unknownDirectionCount,
     directionConflictCount,
+    directionOverrideCount,
     columnConflictCount,
   };
 }
