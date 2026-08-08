@@ -21,6 +21,7 @@ describe("확정 예정 거래 영역", () => {
     expect(markup).toContain('type="date"');
     expect(markup).toContain("입금/출금");
     expect(markup).toContain("추가된 확정 예정 거래가 없습니다.");
+    expect(markup).toContain("확정된 거래가 없다면 추가하지 않아도 됩니다");
     expect(markup).toContain("이 파일 설정 초기화");
   });
 
@@ -48,7 +49,8 @@ describe("확정 예정 거래 영역", () => {
     expect(markup).toContain("2026-05-10");
     expect(markup).toContain("거래처 대금");
     expect(markup).toContain("500,000원");
-    expect(markup).toContain("현재 Forecast 기간 밖인 거래가 1건");
+    expect(markup).toContain("현재 3개월 전망 기간 밖인 거래가 1건");
+    expect(markup).toContain("날짜로 다시");
     expect(markup).toContain("현재 화면에서만 유지됩니다");
     expect(markup).toContain("삭제");
   });

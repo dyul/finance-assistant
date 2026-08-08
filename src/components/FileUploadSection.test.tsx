@@ -71,5 +71,8 @@ describe("파일 업로드 영역", () => {
     expect(markup).toContain("원본 거래내역을");
     expect(markup).toContain("브라우저 저장소에 저장하지 않습니다");
     expect(markup).toContain("예정거래와 선택 시나리오만");
+    expect(markup).toContain("자동 인식 확실도");
+    expect(markup).toContain('class="sr-only"');
+    expect(markup).toContain("focus-within:outline-blue-600");
   });
 });

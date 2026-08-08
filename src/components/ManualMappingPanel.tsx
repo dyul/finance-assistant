@@ -244,7 +244,8 @@ export default function ManualMappingPanel({
 
         {preview.columns.length === 0 ? (
           <p className="mt-2 rounded-lg bg-white px-4 py-4 text-sm text-amber-700">
-            선택한 행에서 컬럼명을 찾지 못했습니다.
+            선택한 행에서 컬럼명을 찾지 못했습니다. 실제 컬럼명이 있는 행을
+            헤더 행 번호로 다시 선택해주세요.
           </p>
         ) : (
           <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">

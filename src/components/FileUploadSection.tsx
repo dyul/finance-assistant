@@ -55,7 +55,7 @@ export default function FileUploadSection({
       </div>
 
       <label
-        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition ${
+        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600 ${
           isProcessingFile
             ? "cursor-wait border-blue-300 bg-blue-50"
             : "cursor-pointer border-slate-300 hover:border-blue-400 hover:bg-blue-50"
@@ -72,7 +72,7 @@ export default function FileUploadSection({
         <input
           type="file"
           accept=".xlsx,.xls"
-          className="hidden"
+          className="sr-only"
           onChange={onFileChange}
           disabled={isProcessingFile}
         />
@@ -154,7 +154,7 @@ export default function FileUploadSection({
 
                 {analysisMode === "automatic" && (
                   <div>
-                    <dt className="text-slate-500">자동 선택 신뢰도</dt>
+                    <dt className="text-slate-500">자동 인식 확실도</dt>
                     <dd className="mt-1">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getConfidenceStyle(

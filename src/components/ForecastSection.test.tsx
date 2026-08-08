@@ -120,10 +120,15 @@ function renderScenario(
     monthlyCategorySummaries: [],
     scheduledTransactions,
   });
+  const summary = createForecastSummary(
+    analyses[scenario].forecasts,
+    analyses[scenario].cashRisk,
+  );
 
   return renderToStaticMarkup(
     <ForecastSection
       analysis={analyses[scenario]}
+      summary={summary}
       selectedScenario={scenario}
       onScenarioChange={() => undefined}
       actionGuideItems={actionGuideItems}
@@ -135,7 +140,13 @@ describe("ForecastSection UI", () => {
   it("기본 시나리오를 기준으로 정의한다", () => {
     expect(DEFAULT_FORECAST_SCENARIO).toBe("base");
     expect(renderScenario(createAnalyses(), DEFAULT_FORECAST_SCENARIO)).toContain(
-      "최근 수입 추세와 반복 지출을 반영한 기본 시나리오",
+      "최근 반복 수입 추세를 그대로 반영한 기본 예상",
+    );
+    expect(renderScenario(createAnalyses(), DEFAULT_FORECAST_SCENARIO)).toContain(
+      "최근 월별 수입 자료가 충분하면 5~20%, 부족하면 기본 10%",
+    );
+    expect(renderScenario(createAnalyses(), DEFAULT_FORECAST_SCENARIO)).toContain(
+      "확정 예정 거래와 반복 지출은 세 예상에서 동일",
     );
   });
 
@@ -160,7 +171,7 @@ describe("ForecastSection UI", () => {
 
       expect(selectedScenario).toBe(scenario);
       const markup = renderScenario(analyses, selectedScenario);
-      expect(markup).toContain(`현금 위험 분석 (${label})`);
+      expect(markup).toContain(`자금 부족 가능성 (${label} 예상)`);
       expect(markup).toContain(expectedEndingBalance);
     },
   );
@@ -201,7 +212,7 @@ describe("ForecastSection UI", () => {
     expect(markup.match(/data-testid="forecast-month-card"/g)).toHaveLength(3);
     expect(markup).toContain("예상 월말 잔액");
     expect(markup).toContain("예상 순현금흐름");
-    expect(markup).toContain("추세·시나리오 반복 입금");
+    expect(markup).toContain("반복 예상 입금 (추세·선택 범위 반영)");
     expect(markup).toContain("예정 입금");
     expect(markup).toContain("기본 반복 예상 출금");
     expect(markup).toContain("예정 출금");
@@ -252,10 +263,37 @@ describe("ForecastSection UI", () => {
         analyses[scenario].cashRisk?.requiredCashBuffer ?? 0,
       ).toLocaleString("ko-KR");
 
-      expect(markup).toContain("추천 액션");
+      expect(markup).toContain("3. 필요한 행동");
       expect(markup).toContain("단기 자금 확보 필요");
       expect(markup).toContain(`${requiredBuffer}원`);
     }
+  });
+
+  it("선택된 예상 범위와 추천 액션의 상황·행동을 텍스트로 구분한다", () => {
+    const markup = renderScenario(createAnalyses(), "base");
+
+    expect(markup).toContain("✓ 기준");
+    expect(markup).toContain('aria-selected="true"');
+    expect(markup).toContain("3. 필요한 행동");
+    expect(markup).toContain("현재 상황");
+    expect(markup).toContain("권장 행동");
+  });
+
+  it("전망을 계산할 수 없으면 필요한 데이터와 다음 행동을 안내한다", () => {
+    const emptyAnalysis = { forecasts: [], cashRisk: null };
+    const markup = renderToStaticMarkup(
+      <ForecastSection
+        analysis={emptyAnalysis}
+        summary={createForecastSummary([], null)}
+        selectedScenario="base"
+        onScenarioChange={() => undefined}
+        actionGuideItems={[]}
+      />,
+    );
+
+    expect(markup).toContain("향후 3개월 전망을 계산할 수 없습니다");
+    expect(markup).toContain("잔액·거래일·적요 컬럼을 확인");
+    expect(markup).toContain("자동 인식 수정");
   });
 
   it("예정 입금이 있으면 일정 확인 액션을 표시한다", () => {

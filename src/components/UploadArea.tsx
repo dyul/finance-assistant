@@ -15,6 +15,7 @@ import {
 } from "./fileUploadPresentation";
 import ScheduledTransactionSection from "./ScheduledTransactionSection";
 import OnboardingSection from "./OnboardingSection";
+import DashboardOverview from "./DashboardOverview";
 
 import {
   mapColumns,
@@ -60,7 +61,10 @@ import {
   getLatestBalance,
 } from "../services/forecastEngine";
 import type { ForecastScenario } from "../services/forecastScenario";
-import { DEFAULT_FORECAST_SCENARIO } from "../services/forecastPresentation";
+import {
+  createForecastSummary,
+  DEFAULT_FORECAST_SCENARIO,
+} from "../services/forecastPresentation";
 
 import {
   partitionScheduledTransactionsByForecastMonths,
@@ -116,6 +120,10 @@ export function InvalidDateWarning({ count }: { count: number }) {
         포함되지만, 월별·반복거래·최근 잔액·Forecast 분석에서는
         제외했습니다. 따라서 전체 합계와 날짜 기반 합계가 다를 수
         있습니다.
+      </p>
+      <p className="mt-2 text-sm font-medium leading-6 text-amber-900">
+        아래 거래 자동 분류 결과에서 ‘날짜 확인 필요’ 거래를 확인하고,
+        원본 Excel의 거래일을 수정한 뒤 다시 업로드해주세요.
       </p>
     </div>
   );
@@ -190,6 +198,10 @@ export function InvalidAmountWarning({
             {unknownDirectionCount}건, 방향 충돌{" "}
             {directionConflictCount}건입니다. 전체 거래 건수에는 포함되지만
             입출금 합계·평균·월별·카테고리·반복 거래 분석에서는 제외됩니다.
+          </p>
+          <p className="mt-2 text-sm font-medium leading-6 text-amber-900">
+            아래 거래 자동 분류 결과의 ‘확인 필요’ 표시와 원본 값을 보고,
+            Excel의 금액 또는 입출금 구분을 수정한 뒤 다시 업로드해주세요.
           </p>
         </>
       )}
@@ -284,9 +296,9 @@ export function DataQualitySummary({
     ["전체 거래", summary.totalTransactionCount],
     ["금액 계산 포함", summary.amountIncludedCount],
     ["날짜 기반 분석 포함", summary.dateAnalysisIncludedCount],
-    ["금액 오류", summary.invalidAmountCount],
-    ["날짜 오류", summary.invalidDateCount],
-    ["방향 오류·충돌", summary.directionIssueCount],
+    ["금액 확인 필요", summary.invalidAmountCount],
+    ["날짜 확인 필요", summary.invalidDateCount],
+    ["입출금 구분 확인 필요", summary.directionIssueCount],
   ] as const;
 
   return (
@@ -300,19 +312,20 @@ export function DataQualitySummary({
     >
       <div>
         <h3 id="data-quality-heading" className="font-semibold text-slate-900">
-          데이터 품질
+          분석에 사용된 거래 확인
         </h3>
         <p className="mt-1 text-sm leading-6 text-slate-600">
-          전체 금액 계산과 날짜 기반 분석에 포함된 거래 범위를 구분합니다.
+          전체 거래 중 금액·날짜 분석에 포함된 건수와 다시 확인할 건수를
+          보여줍니다.
         </p>
       </div>
 
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {metrics.map(([label, value]) => {
           const isErrorMetric =
-            label === "금액 오류" ||
-            label === "날짜 오류" ||
-            label === "방향 오류·충돌";
+            label === "금액 확인 필요" ||
+            label === "날짜 확인 필요" ||
+            label === "입출금 구분 확인 필요";
 
           return (
             <div
@@ -337,7 +350,9 @@ export function DataQualitySummary({
 
       {summary.validDateCount === 0 && summary.totalTransactionCount > 0 && (
         <p className="mt-4 text-sm font-medium leading-6 text-amber-800">
-          유효한 거래일이 없어 최근 잔액과 Forecast를 계산할 수 없습니다.
+          유효한 거래일이 없어 최근 잔액과 3개월 전망을 계산할 수
+          없습니다. Excel의 거래일 형식을 확인하고 다시 업로드하거나,
+          자동 인식 수정에서 거래일 컬럼을 직접 선택해주세요.
         </p>
       )}
     </section>
@@ -471,6 +486,14 @@ export default function UploadArea() {
   );
   const selectedAnalysis = scenarioAnalyses[selectedScenario];
   const { forecasts } = selectedAnalysis;
+  const selectedForecastSummary = useMemo(
+    () =>
+      createForecastSummary(
+        selectedAnalysis.forecasts,
+        selectedAnalysis.cashRisk,
+      ),
+    [selectedAnalysis],
+  );
   const actionGuideItems = useMemo(
     () =>
       createActionGuide({
@@ -862,7 +885,7 @@ export default function UploadArea() {
           ),
         );
         setError(
-          "거래내역으로 판단할 수 있는 시트를 자동으로 찾지 못했습니다. 직접 시트와 컬럼을 설정해 분석할 수 있습니다.",
+          "거래내역으로 판단할 수 있는 시트를 자동으로 찾지 못했습니다. 아래 ‘직접 설정해서 분석’에서 거래내역 시트와 거래일·금액 컬럼을 선택해주세요.",
         );
         return;
       }
@@ -956,10 +979,25 @@ export default function UploadArea() {
       )}
 
       {summary && (
+        <DashboardOverview
+          latestBalance={latestBalance}
+          latestMonthlySummary={monthlySummaries.at(-1) ?? null}
+          forecastSummary={selectedForecastSummary}
+          selectedScenario={selectedScenario}
+        />
+      )}
+
+      {summary && (
         <div className="mt-6">
-          <h3 className="mb-3 font-semibold text-slate-900">
-            재무 요약
-          </h3>
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-900">
+              1. 현재 상태
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              업로드한 기간 전체의 입출금 합계입니다. 순현금흐름은 들어온
+              돈에서 나간 돈을 뺀 금액입니다.
+            </p>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -982,7 +1020,7 @@ export default function UploadArea() {
               <p
                 className={`mt-2 text-xl font-bold ${
                   summary.netCashFlow >= 0
-                    ? "text-blue-700"
+                    ? "text-emerald-700"
                     : "text-red-700"
                 }`}
               >
@@ -1007,7 +1045,7 @@ export default function UploadArea() {
               <p
                 className={`mt-1 text-lg font-bold ${
                   latestBalance >= 0
-                    ? "text-slate-900"
+                    ? "text-emerald-700"
                     : "text-red-700"
                 }`}
               >
@@ -1015,6 +1053,60 @@ export default function UploadArea() {
               </p>
             </div>
           )}
+
+          {latestBalance === null && (
+            <div
+              className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
+              role="status"
+            >
+              <p className="font-semibold text-amber-900">
+                현재 잔액을 확인할 수 없습니다
+              </p>
+              <p className="mt-1 text-sm leading-6 text-amber-800">
+                예상 월말잔액을 계산하려면 Excel에 잔액 컬럼이 필요합니다.
+                잔액을 추가해 다시 업로드하거나, 자동 인식 수정에서 잔액
+                컬럼을 직접 선택해주세요.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {forecasts.length > 0 && (
+        <ScheduledTransactionSection
+          key={fileName}
+          forecastMonths={forecasts.map((forecast) => forecast.month)}
+          scheduledTransactions={scheduledTransactions}
+          outOfPeriodCount={outOfPeriodScheduledTransactions.length}
+          storageAvailable={sessionStorageAvailable}
+          onAdd={handleScheduledTransactionAdd}
+          onRemove={handleScheduledTransactionRemove}
+          onReset={handleCurrentFileSettingsReset}
+        />
+      )}
+
+      {summary && (
+        <ForecastSection
+          analysis={selectedAnalysis}
+          summary={selectedForecastSummary}
+          selectedScenario={selectedScenario}
+          onScenarioChange={handleScenarioChange}
+          actionGuideItems={actionGuideItems}
+        />
+      )}
+
+      {summary && (
+        <div className="mt-10 border-t border-slate-200 pt-7">
+          <p className="text-xs font-semibold tracking-wide text-slate-500">
+            4. 상세 분석
+          </p>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">
+            거래 내역을 더 자세히 살펴보세요
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            분석에 포함된 거래, 월별 흐름, 반복 거래와 지출 구성을
+            확인할 수 있습니다.
+          </p>
         </div>
       )}
 
@@ -1066,7 +1158,7 @@ export default function UploadArea() {
                     <td
                       className={`px-4 py-3 text-right font-semibold ${
                         item.netCashFlow >= 0
-                          ? "text-blue-700"
+                          ? "text-emerald-700"
                           : "text-red-700"
                       }`}
                     >
@@ -1148,26 +1240,6 @@ export default function UploadArea() {
           </div>
         </div>
       )}
-
-      {forecasts.length > 0 && (
-        <ScheduledTransactionSection
-          key={fileName}
-          forecastMonths={forecasts.map((forecast) => forecast.month)}
-          scheduledTransactions={scheduledTransactions}
-          outOfPeriodCount={outOfPeriodScheduledTransactions.length}
-          storageAvailable={sessionStorageAvailable}
-          onAdd={handleScheduledTransactionAdd}
-          onRemove={handleScheduledTransactionRemove}
-          onReset={handleCurrentFileSettingsReset}
-        />
-      )}
-
-      <ForecastSection
-        analysis={selectedAnalysis}
-        selectedScenario={selectedScenario}
-        onScenarioChange={handleScenarioChange}
-        actionGuideItems={actionGuideItems}
-      />
 
       {categorySummaries.length > 0 && (
         <div className="mt-6">

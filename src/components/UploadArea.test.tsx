@@ -50,6 +50,8 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("전체 입출금과 전체 거래 건수");
     expect(markup).toContain("월별·반복거래·최근 잔액·Forecast");
     expect(markup).toContain("전체 합계와 날짜 기반 합계가 다를 수");
+    expect(markup).toContain("‘날짜 확인 필요’ 거래를 확인");
+    expect(markup).toContain("원본 Excel의 거래일을 수정");
   });
 
   it("전체·금액·날짜 분석 범위를 데이터 품질 요약에 표시한다", () => {
@@ -67,16 +69,16 @@ describe("UploadArea 날짜 오류 안내", () => {
       />,
     );
 
-    expect(markup).toContain("데이터 품질");
+    expect(markup).toContain("분석에 사용된 거래 확인");
     expect(markup).toContain("전체 거래");
     expect(markup).toContain("100건");
     expect(markup).toContain("금액 계산 포함");
     expect(markup).toContain("98건");
     expect(markup).toContain("날짜 기반 분석 포함");
     expect(markup).toContain("96건");
-    expect(markup).toContain("금액 오류");
-    expect(markup).toContain("날짜 오류");
-    expect(markup).toContain("방향 오류·충돌");
+    expect(markup).toContain("금액 확인 필요");
+    expect(markup).toContain("날짜 확인 필요");
+    expect(markup).toContain("입출금 구분 확인 필요");
   });
 
   it("계산 제외 금액 오류와 컬럼 충돌을 분리해 안내한다", () => {
@@ -98,6 +100,8 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("분리 입금·출금 컬럼 값을 우선");
     expect(markup).toContain("입출금 구분이 다른 거래 5건");
     expect(markup).toContain("명시된 입출금 구분을 우선");
+    expect(markup).toContain("‘확인 필요’ 표시와 원본 값을 보고");
+    expect(markup).toContain("금액 또는 입출금 구분을 수정");
   });
 
   it("금액 경고가 없으면 안내를 표시하지 않는다", () => {

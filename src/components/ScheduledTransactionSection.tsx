@@ -76,8 +76,8 @@ export default function ScheduledTransactionSection({
           확정 예정 거래
         </h3>
         <p className="mt-1 text-sm text-slate-500">
-          향후 3개월 안에 확정된 입금이나 출금을 추가하면 Forecast와 현금
-          위험도가 바로 다시 계산됩니다.
+          향후 3개월 안에 확정된 입금이나 출금을 추가하면 예상 잔액과 자금
+          부족 가능성이 바로 다시 계산됩니다.
         </p>
 
         <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
@@ -181,16 +181,18 @@ export default function ScheduledTransactionSection({
           className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
           role="status"
         >
-          저장된 예정거래 중 현재 Forecast 기간 밖인 거래가 {outOfPeriodCount}
-          건 있습니다. 목록에는 유지하지만 이번 Forecast 계산에서는
-          제외했습니다.
+          저장된 예정거래 중 현재 3개월 전망 기간 밖인 거래가 {outOfPeriodCount}
+          건 있습니다. 목록에는 유지하지만 이번 전망에서는 제외했습니다.
+          전망에 포함하려면 기존 거래를 삭제하고 위 기간 안의 날짜로 다시
+          추가해주세요.
         </p>
       )}
 
       <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
         {scheduledTransactions.length === 0 ? (
           <p className="bg-white px-4 py-5 text-sm text-slate-500">
-            추가된 확정 예정 거래가 없습니다.
+            추가된 확정 예정 거래가 없습니다. 확정된 거래가 없다면 추가하지
+            않아도 됩니다.
           </p>
         ) : (
           <table className="w-full min-w-[700px] text-left text-sm">
