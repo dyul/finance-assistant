@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 
 import { calculateFinancialSummary } from "./financialEngine";
 import { getLatestBalance } from "./forecastEngine";
+import { mapColumns } from "./columnMapper";
 import { aggregateMonthly } from "./monthlyAggregator";
 import { aggregateMonthlyExpensesByCategory } from "./monthlyCategoryAggregator";
 import { detectRecurringTransactions } from "./recurringTransactionDetector";
@@ -10,6 +11,7 @@ import {
   parseTransactions,
   type Transaction,
 } from "./transactionParser";
+import { standardizeTransactionRows } from "./transactionRowStandardizer";
 
 function createTransaction(
   overrides: Partial<Transaction> = {},
@@ -141,6 +143,84 @@ describe("거래 날짜 처리 흐름", () => {
         month: "2024-01",
         amount: 500,
         transactionCount: 1,
+      }),
+    ]);
+  });
+
+  it("서로 다른 날짜 표현을 표준화한 뒤 실제 월 순서로 집계한다", () => {
+    const parsed = parseTransactions([
+      { date: "2026/03/01", amount: 300, direction: "입금" },
+      { date: "2026-01-15", amount: 100, direction: "입금" },
+      { date: "2026년 2월 10일", amount: 200, direction: "입금" },
+      { date: "20260401", amount: 400, direction: "입금" },
+    ]);
+
+    expect(parsed.transactions.map((transaction) => transaction.date)).toEqual([
+      "2026-03-01",
+      "2026-01-15",
+      "2026-02-10",
+      "2026-04-01",
+    ]);
+    expect(aggregateMonthly(parsed.transactions).map((item) => item.month)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+    ]);
+  });
+
+  it("실제 Excel 날짜 셀부터 금액·날짜 집계까지 전체 흐름을 처리한다", () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ["거래일", "적요", "거래구분", "금액", "잔액"],
+        [new Date(2026, 0, 3), "상품판매", "입금", 500_000, 1_500_000],
+        ["2026/2/3", "월세", "출금", "700,000", 800_000],
+        ["날짜미정", "수수료", "출금", 100_000, 700_000],
+        ["2026.03.03", "확인 필요", "입금", "N/A", 700_000],
+      ]),
+      "거래",
+    );
+    const workbookData = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const parsedWorkbook = XLSX.read(workbookData, { type: "array" });
+    const sheet = parsedWorkbook.Sheets[parsedWorkbook.SheetNames[0]];
+    const objectRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      sheet,
+      { defval: "" },
+    );
+    const mappings = mapColumns(Object.keys(objectRows[0]), objectRows);
+    const standardizedRows = standardizeTransactionRows(
+      objectRows,
+      mappings,
+    );
+    const parsed = parseTransactions(standardizedRows);
+    const financialSummary = calculateFinancialSummary(parsed.transactions);
+    const monthly = aggregateMonthly(parsed.transactions);
+
+    expect(parsed.transactions[0]?.date).toBe("2026-01-03");
+    expect(parsed.invalidDateCount).toBe(1);
+    expect(parsed.invalidAmountCount).toBe(1);
+    expect(financialSummary).toMatchObject({
+      totalIncome: 500_000,
+      totalExpense: 800_000,
+      netCashFlow: -300_000,
+      transactionCount: 4,
+      validAmountTransactionCount: 3,
+    });
+    expect(monthly).toEqual([
+      expect.objectContaining({
+        month: "2026-01",
+        income: 500_000,
+        expense: 0,
+      }),
+      expect.objectContaining({
+        month: "2026-02",
+        income: 0,
+        expense: 700_000,
       }),
     ]);
   });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
 import {
+  DataQualitySummary,
   InvalidAmountWarning,
   InvalidDateWarning,
   TransactionAmountCells,
@@ -24,10 +25,37 @@ describe("UploadArea 날짜 오류 안내", () => {
       <InvalidDateWarning count={2} />,
     );
 
-    expect(markup).toContain("날짜를 확인할 수 없는 거래 2건");
+    expect(markup).toContain("날짜를 해석하지 못한 거래 2건");
     expect(markup).toContain("전체 입출금과 전체 거래 건수");
-    expect(markup).toContain("월별 분석·반복 거래·최신 잔액·예측");
-    expect(markup).toContain("전체 합계와 월별 합계가 다를 수");
+    expect(markup).toContain("월별·반복거래·최근 잔액·Forecast");
+    expect(markup).toContain("전체 합계와 날짜 기반 합계가 다를 수");
+  });
+
+  it("전체·금액·날짜 분석 범위를 데이터 품질 요약에 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <DataQualitySummary
+        summary={{
+          totalTransactionCount: 100,
+          amountIncludedCount: 98,
+          dateAnalysisIncludedCount: 96,
+          validDateCount: 98,
+          invalidAmountCount: 2,
+          invalidDateCount: 2,
+          directionIssueCount: 1,
+        }}
+      />,
+    );
+
+    expect(markup).toContain("데이터 품질");
+    expect(markup).toContain("전체 거래");
+    expect(markup).toContain("100건");
+    expect(markup).toContain("금액 계산 포함");
+    expect(markup).toContain("98건");
+    expect(markup).toContain("날짜 기반 분석 포함");
+    expect(markup).toContain("96건");
+    expect(markup).toContain("금액 오류");
+    expect(markup).toContain("날짜 오류");
+    expect(markup).toContain("방향 오류·충돌");
   });
 
   it("계산 제외 금액 오류와 컬럼 충돌을 분리해 안내한다", () => {

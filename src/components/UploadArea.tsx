@@ -56,6 +56,10 @@ import { DEFAULT_FORECAST_SCENARIO } from "../services/forecastPresentation";
 
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
 import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
+import {
+  analyzeDataQuality,
+  type DataQualitySummary as DataQualitySummaryValue,
+} from "../services/dataQualityAnalyzer";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -68,14 +72,14 @@ export function InvalidDateWarning({ count }: { count: number }) {
       role="status"
     >
       <p className="font-semibold text-amber-900">
-        날짜를 확인할 수 없는 거래 {count}건
+        날짜를 해석하지 못한 거래 {count}건
       </p>
 
       <p className="mt-1 text-sm leading-6 text-amber-800">
-        금액을 정상적으로 확인할 수 있는 해당 거래는 전체
-        입출금과 전체 거래 건수에는 포함되지만, 월별 분석·반복
-        거래·최신 잔액·예측에서는 제외됩니다. 따라서 전체 합계와
-        월별 합계가 다를 수 있습니다.
+        금액이 정상인 거래는 전체 입출금과 전체 거래 건수에는
+        포함되지만, 월별·반복거래·최근 잔액·Forecast 분석에서는
+        제외했습니다. 따라서 전체 합계와 날짜 기반 합계가 다를 수
+        있습니다.
       </p>
     </div>
   );
@@ -226,6 +230,79 @@ export function TransactionAmountCells(
   );
 }
 
+export function DataQualitySummary({
+  summary,
+}: {
+  summary: DataQualitySummaryValue;
+}) {
+  const hasWarning =
+    summary.invalidAmountCount > 0 ||
+    summary.invalidDateCount > 0 ||
+    summary.directionIssueCount > 0;
+  const metrics = [
+    ["전체 거래", summary.totalTransactionCount],
+    ["금액 계산 포함", summary.amountIncludedCount],
+    ["날짜 기반 분석 포함", summary.dateAnalysisIncludedCount],
+    ["금액 오류", summary.invalidAmountCount],
+    ["날짜 오류", summary.invalidDateCount],
+    ["방향 오류·충돌", summary.directionIssueCount],
+  ] as const;
+
+  return (
+    <section
+      className={`mt-6 rounded-xl border p-5 ${
+        hasWarning
+          ? "border-amber-200 bg-amber-50/60"
+          : "border-slate-200 bg-slate-50"
+      }`}
+      aria-labelledby="data-quality-heading"
+    >
+      <div>
+        <h3 id="data-quality-heading" className="font-semibold text-slate-900">
+          데이터 품질
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-slate-600">
+          전체 금액 계산과 날짜 기반 분석에 포함된 거래 범위를 구분합니다.
+        </p>
+      </div>
+
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {metrics.map(([label, value]) => {
+          const isErrorMetric =
+            label === "금액 오류" ||
+            label === "날짜 오류" ||
+            label === "방향 오류·충돌";
+
+          return (
+            <div
+              key={label}
+              className="flex items-center justify-between rounded-lg border border-white/80 bg-white p-3"
+            >
+              <dt className="text-sm text-slate-600">{label}</dt>
+              <dd
+                className={`font-bold ${
+                  isErrorMetric && value > 0
+                    ? "text-amber-700"
+                    : "text-slate-900"
+                }`}
+                data-quality={label}
+              >
+                {value.toLocaleString("ko-KR")}건
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+
+      {summary.validDateCount === 0 && summary.totalTransactionCount > 0 && (
+        <p className="mt-4 text-sm font-medium leading-6 text-amber-800">
+          유효한 거래일이 없어 최근 잔액과 Forecast를 계산할 수 없습니다.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -266,6 +343,10 @@ export default function UploadArea() {
   );
   const latestBalance = useMemo(
     () => getLatestBalance(transactions),
+    [transactions],
+  );
+  const dataQualitySummary = useMemo(
+    () => analyzeDataQuality(transactions),
     [transactions],
   );
   const scenarioAnalyses = useMemo(
@@ -676,6 +757,10 @@ export default function UploadArea() {
             </div>
           )}
         </div>
+      )}
+
+      {transactions.length > 0 && (
+        <DataQualitySummary summary={dataQualitySummary} />
       )}
 
       <InvalidDateWarning count={invalidDateCount} />

@@ -6,6 +6,18 @@ export interface DateNormalizationOptions {
   date1904?: boolean;
 }
 
+export type DateNormalizationResult =
+  | {
+      status: "valid";
+      value: NormalizedDate;
+      originalValue: unknown;
+    }
+  | {
+      status: "invalid";
+      originalValue: unknown;
+      reason: string;
+    };
+
 interface ExcelDateParts {
   y: number;
   m: number;
@@ -177,6 +189,7 @@ function normalizeDateString(value: string): NormalizedDate | null {
   const koreanDate = normalized.match(
     /^(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일(.*)$/,
   );
+  const compactDate = normalized.match(/^(\d{4})(\d{2})(\d{2})$/);
 
   let year: number;
   let month: number;
@@ -193,6 +206,11 @@ function normalizeDateString(value: string): NormalizedDate | null {
     month = Number(koreanDate[2]);
     day = Number(koreanDate[3]);
     suffix = koreanDate[4];
+  } else if (compactDate) {
+    year = Number(compactDate[1]);
+    month = Number(compactDate[2]);
+    day = Number(compactDate[3]);
+    suffix = "";
   } else {
     return null;
   }
@@ -204,11 +222,19 @@ function normalizeDateString(value: string): NormalizedDate | null {
   return formatDate(year, month, day);
 }
 
-export function normalizeTransactionDate(
+function normalizeTransactionDateValue(
   value: unknown,
   options: DateNormalizationOptions = {},
 ): NormalizedDate | null {
   if (typeof value === "number") {
+    if (Number.isInteger(value)) {
+      const compactDate = String(value);
+
+      if (/^\d{8}$/.test(compactDate)) {
+        return normalizeDateString(compactDate);
+      }
+    }
+
     return normalizeExcelSerial(value, options);
   }
 
@@ -221,4 +247,58 @@ export function normalizeTransactionDate(
   }
 
   return null;
+}
+
+function getInvalidDateReason(value: unknown): string {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    return "날짜 값이 비어 있습니다.";
+  }
+
+  if (value instanceof Date) {
+    return "유효하지 않은 Date 객체입니다.";
+  }
+
+  if (typeof value === "number") {
+    return "유효한 Excel 날짜 일련번호 또는 YYYYMMDD 값이 아닙니다.";
+  }
+
+  if (typeof value === "string") {
+    return "지원하지 않거나 존재하지 않는 날짜입니다.";
+  }
+
+  return "지원하지 않는 날짜 값 형식입니다.";
+}
+
+export function normalizeTransactionDateResult(
+  value: unknown,
+  options: DateNormalizationOptions = {},
+): DateNormalizationResult {
+  const normalizedDate = normalizeTransactionDateValue(value, options);
+
+  if (normalizedDate !== null) {
+    return {
+      status: "valid",
+      value: normalizedDate,
+      originalValue: value,
+    };
+  }
+
+  return {
+    status: "invalid",
+    originalValue: value,
+    reason: getInvalidDateReason(value),
+  };
+}
+
+export function normalizeTransactionDate(
+  value: unknown,
+  options: DateNormalizationOptions = {},
+): NormalizedDate | null {
+  const result = normalizeTransactionDateResult(value, options);
+
+  return result.status === "valid" ? result.value : null;
 }

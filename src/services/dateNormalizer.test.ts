@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeTransactionDate } from "./dateNormalizer";
+import {
+  normalizeTransactionDate,
+  normalizeTransactionDateResult,
+} from "./dateNormalizer";
 
 describe("normalizeTransactionDate", () => {
   it("1900 날짜 체계의 Excel 일련번호를 변환한다", () => {
@@ -85,6 +88,9 @@ describe("normalizeTransactionDate", () => {
     ["2024/1/2", "2024-01-02"],
     ["2024.01.02", "2024-01-02"],
     ["2024년 1월 2일", "2024-01-02"],
+    ["20240102", "2024-01-02"],
+    [20240102, "2024-01-02"],
+    [" 2024-01-02 ", "2024-01-02"],
     ["2024-01-02 23:59:59", "2024-01-02"],
     ["2024-01-02T23:30:00-02:00", "2024-01-02"],
     ["2024년 1월 2일 09:15", "2024-01-02"],
@@ -99,12 +105,31 @@ describe("normalizeTransactionDate", () => {
     "",
     "   ",
     "45292",
+    "날짜미정",
+    "N/A",
+    "-",
     "2025-02-29",
+    "2026-02-30",
+    "2026-13-01",
     "2024-02-31",
     "2024-13-01",
     "2024-01-02 24:00",
     "해석할 수 없음",
   ])("해석하거나 추정할 수 없는 값 %s를 거부한다", (input) => {
     expect(normalizeTransactionDate(input)).toBeNull();
+  });
+
+  it("정규화 결과에 상태와 원본 값을 보존한다", () => {
+    expect(normalizeTransactionDateResult(" 2026/1/3 ")).toEqual({
+      status: "valid",
+      value: "2026-01-03",
+      originalValue: " 2026/1/3 ",
+    });
+
+    expect(normalizeTransactionDateResult("2026-02-30")).toEqual({
+      status: "invalid",
+      originalValue: "2026-02-30",
+      reason: "지원하지 않거나 존재하지 않는 날짜입니다.",
+    });
   });
 });
