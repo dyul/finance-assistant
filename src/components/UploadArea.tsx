@@ -60,6 +60,12 @@ import {
   analyzeDataQuality,
   type DataQualitySummary as DataQualitySummaryValue,
 } from "../services/dataQualityAnalyzer";
+import {
+  detectTransactionSheet,
+  getWorksheetDetectionRows,
+  type SheetDetectionResult,
+  type TransactionSheetCandidate,
+} from "../services/transactionSheetDetector";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -307,6 +313,8 @@ export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
   const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [sheetDetection, setSheetDetection] =
+    useState<SheetDetectionResult | null>(null);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
@@ -378,6 +386,7 @@ export default function UploadArea() {
     setFileName("");
     setFileSize("");
     setSheetNames([]);
+    setSheetDetection(null);
     setColumnMappings([]);
     setTransactions([]);
     setSummary(null);
@@ -487,44 +496,51 @@ export default function UploadArea() {
       const date1904 =
         workbook.Workbook?.WBProps?.date1904 === true;
 
-      const firstSheetName = workbook.SheetNames[0];
-      const firstSheet = workbook.Sheets[firstSheetName];
-
-      if (!firstSheetName || !firstSheet) {
+      if (workbook.SheetNames.length === 0) {
         throw new Error("엑셀 시트를 찾을 수 없습니다.");
       }
 
-      const rawRows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
-        header: 1,
-        defval: "",
+      const sheetCandidates: TransactionSheetCandidate[] =
+        workbook.SheetNames.map((sheetName, sheetIndex) => ({
+          sheetName,
+          sheetIndex,
+          rows: getWorksheetDetectionRows(workbook.Sheets[sheetName]),
+        }));
+      const detectedSheet = detectTransactionSheet(sheetCandidates, {
+        date1904,
       });
 
-      const headerRowIndex = rawRows.findIndex((row) =>
-        row.some((cell) => String(cell).trim() !== ""),
-      );
-
-      if (headerRowIndex < 0) {
-        setError("첫 번째 시트에서 컬럼명을 찾지 못했습니다.");
+      if (!detectedSheet) {
+        setError(
+          "거래내역으로 판단할 수 있는 시트를 찾지 못했습니다.",
+        );
         event.target.value = "";
         return;
       }
 
-      const headerRow = rawRows[headerRowIndex];
+      const selectedSheet = workbook.Sheets[detectedSheet.sheetName];
+      const detectionRows = sheetCandidates[detectedSheet.sheetIndex]?.rows;
+
+      if (!selectedSheet || !detectionRows) {
+        throw new Error("자동 선택된 거래 시트를 읽을 수 없습니다.");
+      }
+
+      const headerRow = detectionRows[detectedSheet.headerRowIndex] ?? [];
 
       const columnNames = headerRow
         .map((cell) => String(cell).trim())
         .filter((cell) => cell !== "");
 
       if (columnNames.length === 0) {
-        setError("첫 번째 시트에서 컬럼명을 찾지 못했습니다.");
+        setError("자동 선택된 거래 시트의 컬럼명을 찾지 못했습니다.");
         event.target.value = "";
         return;
       }
 
       const objectRows =
-        XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
+        XLSX.utils.sheet_to_json<Record<string, unknown>>(selectedSheet, {
           defval: "",
-          range: headerRowIndex,
+          range: detectedSheet.headerRowIndex,
         });
 
       const mappings = mapColumns(columnNames, objectRows);
@@ -564,6 +580,7 @@ export default function UploadArea() {
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
       setSheetNames(workbook.SheetNames);
+      setSheetDetection(detectedSheet);
       setColumnMappings(mappings);
       setTransactions(parsedResult.transactions);
       setSummary(financialSummary);
@@ -671,7 +688,7 @@ export default function UploadArea() {
 
       {fileName && (
         <div className="mt-5 rounded-lg bg-slate-50 p-4">
-          <dl className="grid gap-3 text-sm sm:grid-cols-3">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <dt className="text-slate-500">파일명</dt>
               <dd className="mt-1 font-medium text-slate-900">
@@ -692,7 +709,37 @@ export default function UploadArea() {
                 {sheetNames.length}개
               </dd>
             </div>
+
+            {sheetDetection && (
+              <>
+                <div>
+                  <dt className="text-slate-500">분석 시트</dt>
+                  <dd className="mt-1 font-medium text-slate-900">
+                    {sheetDetection.sheetName}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-slate-500">자동 선택 신뢰도</dt>
+                  <dd className="mt-1">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getConfidenceStyle(
+                        sheetDetection.confidence,
+                      )}`}
+                    >
+                      {getConfidenceLabel(sheetDetection.confidence)}
+                    </span>
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
+
+          {sheetDetection && (
+            <p className="mt-4 border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
+              {sheetDetection.reasons.join(" · ")}
+            </p>
+          )}
         </div>
       )}
 
