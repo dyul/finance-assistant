@@ -13,7 +13,6 @@ describe("파일 업로드 영역", () => {
         sheetDetection={null}
         automaticSheetDetection={null}
         analysisMode={null}
-        error=""
         isProcessingFile
         manualMappingOpen={false}
         canConfigureManual={false}
@@ -50,7 +49,6 @@ describe("파일 업로드 영역", () => {
         sheetDetection={detection}
         automaticSheetDetection={detection}
         analysisMode="automatic"
-        error=""
         isProcessingFile={false}
         manualMappingOpen={false}
         canConfigureManual

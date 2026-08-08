@@ -16,6 +16,7 @@ import {
 import ScheduledTransactionSection from "./ScheduledTransactionSection";
 import OnboardingSection from "./OnboardingSection";
 import DashboardOverview from "./DashboardOverview";
+import AnalysisIssuePanel from "./AnalysisIssuePanel";
 
 import {
   mapColumns,
@@ -96,38 +97,16 @@ import {
 import { loadExcelWorkbook } from "../services/excelWorkbookLoader";
 import type { ExcelWorkbook } from "../services/excelWorkbook";
 import {
+  createAnalysisLimitationIssues,
+  createBlockingAnalysisIssue,
+  createPartialAnalysisIssues,
+  type AnalysisIssue,
+} from "../services/analysisIssuePresentation";
+import {
   formatCurrency,
   formatMonth,
   formatSignedCurrency,
 } from "../utils/formatters";
-
-export function InvalidDateWarning({ count }: { count: number }) {
-  if (count <= 0) {
-    return null;
-  }
-
-  return (
-    <div
-      className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
-      role="status"
-    >
-      <p className="font-semibold text-amber-900">
-        날짜를 해석하지 못한 거래 {count}건
-      </p>
-
-      <p className="mt-1 text-sm leading-6 text-amber-800">
-        금액이 정상인 거래는 전체 입출금과 전체 거래 건수에는
-        포함되지만, 월별·반복거래·최근 잔액·Forecast 분석에서는
-        제외했습니다. 따라서 전체 합계와 날짜 기반 합계가 다를 수
-        있습니다.
-      </p>
-      <p className="mt-2 text-sm font-medium leading-6 text-amber-900">
-        아래 거래 자동 분류 결과에서 ‘날짜 확인 필요’ 거래를 확인하고,
-        원본 Excel의 거래일을 수정한 뒤 다시 업로드해주세요.
-      </p>
-    </div>
-  );
-}
 
 interface AmountWarningCounts {
   invalidAmountCount: number;
@@ -135,6 +114,13 @@ interface AmountWarningCounts {
   directionConflictCount: number;
   directionOverrideCount: number;
   columnConflictCount: number;
+}
+
+class NoValidTransactionsError extends Error {
+  constructor() {
+    super("선택한 설정에서 유효한 거래를 찾지 못했습니다.");
+    this.name = "NoValidTransactionsError";
+  }
 }
 
 function getManualAmountStructure(
@@ -160,71 +146,6 @@ function formatOriginalAmountValues(
     `금액 ${values.amount ?? "없음"}`,
     `구분 ${values.direction ?? "없음"}`,
   ].join(", ");
-}
-
-export function InvalidAmountWarning({
-  invalidAmountCount,
-  unknownDirectionCount,
-  directionConflictCount,
-  directionOverrideCount,
-  columnConflictCount,
-}: AmountWarningCounts) {
-  const excludedCount =
-    invalidAmountCount +
-    unknownDirectionCount +
-    directionConflictCount;
-
-  if (
-    excludedCount === 0 &&
-    directionOverrideCount === 0 &&
-    columnConflictCount === 0
-  ) {
-    return null;
-  }
-
-  return (
-    <div
-      className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
-      role="status"
-    >
-      {excludedCount > 0 && (
-        <>
-          <p className="font-semibold text-amber-900">
-            금액 계산에서 제외된 거래 {excludedCount}건
-          </p>
-
-          <p className="mt-1 text-sm leading-6 text-amber-800">
-            금액 오류 {invalidAmountCount}건, 방향 미확정{" "}
-            {unknownDirectionCount}건, 방향 충돌{" "}
-            {directionConflictCount}건입니다. 전체 거래 건수에는 포함되지만
-            입출금 합계·평균·월별·카테고리·반복 거래 분석에서는 제외됩니다.
-          </p>
-          <p className="mt-2 text-sm font-medium leading-6 text-amber-900">
-            아래 거래 자동 분류 결과의 ‘확인 필요’ 표시와 원본 값을 보고,
-            Excel의 금액 또는 입출금 구분을 수정한 뒤 다시 업로드해주세요.
-          </p>
-        </>
-      )}
-
-      {columnConflictCount > 0 && (
-        <p
-          className={`${excludedCount > 0 ? "mt-2" : ""} text-sm leading-6 text-amber-800`}
-        >
-          분리 컬럼과 단일 금액이 다른 거래 {columnConflictCount}건은
-          분리 입금·출금 컬럼 값을 우선 적용했습니다.
-        </p>
-      )}
-
-      {directionOverrideCount > 0 && (
-        <p
-          className={`${excludedCount > 0 || columnConflictCount > 0 ? "mt-2" : ""} text-sm leading-6 text-amber-800`}
-        >
-          금액 부호와 입출금 구분이 다른 거래 {directionOverrideCount}건은
-          명시된 입출금 구분을 우선 적용했습니다.
-        </p>
-      )}
-    </div>
-  );
 }
 
 export function TransactionDateValue({
@@ -348,13 +269,6 @@ export function DataQualitySummary({
         })}
       </dl>
 
-      {summary.validDateCount === 0 && summary.totalTransactionCount > 0 && (
-        <p className="mt-4 text-sm font-medium leading-6 text-amber-800">
-          유효한 거래일이 없어 최근 잔액과 3개월 전망을 계산할 수
-          없습니다. Excel의 거래일 형식을 확인하고 다시 업로드하거나,
-          자동 인식 수정에서 거래일 컬럼을 직접 선택해주세요.
-        </p>
-      )}
     </section>
   );
 }
@@ -511,8 +425,6 @@ export default function UploadArea() {
     ],
   );
 
-  const [invalidDateCount, setInvalidDateCount] = useState(0);
-
   const [amountWarningCounts, setAmountWarningCounts] =
     useState<AmountWarningCounts>({
       invalidAmountCount: 0,
@@ -522,8 +434,49 @@ export default function UploadArea() {
       columnConflictCount: 0,
     });
 
-  const [error, setError] = useState("");
+  const [blockingIssue, setBlockingIssue] =
+    useState<AnalysisIssue | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const partialAnalysisIssues = useMemo(
+    () =>
+      createPartialAnalysisIssues(
+        dataQualitySummary,
+        amountWarningCounts,
+      ),
+    [dataQualitySummary, amountWarningCounts],
+  );
+  const limitationIssues = useMemo(
+    () =>
+      createAnalysisLimitationIssues({
+        latestBalanceAvailable: latestBalance !== null,
+        recurringTransactionCount: recurringTransactions.length,
+        storageAvailable: sessionStorageAvailable,
+      }),
+    [
+      latestBalance,
+      recurringTransactions.length,
+      sessionStorageAvailable,
+    ],
+  );
+
+  function clearAnalysisResults() {
+    setSheetDetection(null);
+    setAnalysisMode(null);
+    setColumnMappings([]);
+    setTransactions([]);
+    setSummary(null);
+    setMonthlySummaries([]);
+    setCategorySummaries([]);
+    setMonthlyCategorySummaries([]);
+    setInsights([]);
+    setAmountWarningCounts({
+      invalidAmountCount: 0,
+      unknownDirectionCount: 0,
+      directionConflictCount: 0,
+      directionOverrideCount: 0,
+      columnConflictCount: 0,
+    });
+  }
 
   function resetFileInfo() {
     setWorkbook(null);
@@ -545,7 +498,6 @@ export default function UploadArea() {
     setScheduledTransactions([]);
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     setSessionStorageAvailable(true);
-    setInvalidDateCount(0);
     setAmountWarningCounts({
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
@@ -650,9 +602,7 @@ export default function UploadArea() {
     );
 
     if (validTransactionRowCount === 0) {
-      throw new Error(
-        "선택한 설정에서 유효한 거래를 찾지 못했습니다. 헤더 행과 거래일·금액 컬럼을 확인해주세요.",
-      );
+      throw new NoValidTransactionsError();
     }
 
     const financialSummary = calculateFinancialSummary(
@@ -702,7 +652,6 @@ export default function UploadArea() {
     setMonthlyCategorySummaries(monthlyCategoryResults);
     setInsights(generatedInsights);
     setAnalysisMode(mode);
-    setInvalidDateCount(parsedResult.invalidDateCount);
     setAmountWarningCounts({
       invalidAmountCount: parsedResult.invalidAmountCount,
       unknownDirectionCount: parsedResult.unknownDirectionCount,
@@ -766,12 +715,21 @@ export default function UploadArea() {
         "manual",
       );
       setManualMappingErrors([]);
-      setError("");
+      setBlockingIssue(null);
     } catch (caughtError) {
+      if (caughtError instanceof NoValidTransactionsError) {
+        const issue = createBlockingAnalysisIssue("noValidTransactions");
+
+        clearAnalysisResults();
+        setBlockingIssue(issue);
+        setManualMappingErrors([
+          "유효한 거래가 없습니다. 거래일·금액 컬럼과 원본 값을 다시 확인해주세요.",
+        ]);
+        return;
+      }
+
       setManualMappingErrors([
-        caughtError instanceof Error
-          ? caughtError.message
-          : "수동 설정으로 분석하지 못했습니다.",
+        "선택한 설정으로 분석하지 못했습니다. 헤더 행과 컬럼 선택을 다시 확인해주세요.",
       ]);
     }
   }
@@ -809,12 +767,18 @@ export default function UploadArea() {
       );
       setManualMappingErrors([]);
       setManualMappingOpen(false);
-      setError("");
+      setBlockingIssue(null);
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "자동 인식 결과로 분석하지 못했습니다.",
+      if (caughtError instanceof NoValidTransactionsError) {
+        clearAnalysisResults();
+        setBlockingIssue(
+          createBlockingAnalysisIssue("noValidTransactions"),
+        );
+        return;
+      }
+
+      setBlockingIssue(
+        createBlockingAnalysisIssue("workbookReadFailed"),
       );
     }
   }
@@ -830,7 +794,7 @@ export default function UploadArea() {
       return;
     }
 
-    setError("");
+    setBlockingIssue(null);
     resetFileInfo();
 
     const allowedExtensions = [".xlsx", ".xls"];
@@ -839,7 +803,7 @@ export default function UploadArea() {
       dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : "";
 
     if (!allowedExtensions.includes(extension)) {
-      setError("엑셀 파일(.xlsx 또는 .xls)만 업로드할 수 있습니다.");
+      setBlockingIssue(createBlockingAnalysisIssue("unsupportedFile"));
       event.target.value = "";
       return;
     }
@@ -851,7 +815,7 @@ export default function UploadArea() {
       const uploadedWorkbook = await loadExcelWorkbook(arrayBuffer);
 
       if (uploadedWorkbook.sheetNames.length === 0) {
-        throw new Error("엑셀 시트를 찾을 수 없습니다.");
+        throw new Error("workbook-without-sheets");
       }
 
       const restoredFileSession = loadUserFileSession(file.name);
@@ -884,8 +848,8 @@ export default function UploadArea() {
             0,
           ),
         );
-        setError(
-          "거래내역으로 판단할 수 있는 시트를 자동으로 찾지 못했습니다. 아래 ‘직접 설정해서 분석’에서 거래내역 시트와 거래일·금액 컬럼을 선택해주세요.",
+        setBlockingIssue(
+          createBlockingAnalysisIssue("transactionSheetNotFound"),
         );
         return;
       }
@@ -919,10 +883,20 @@ export default function UploadArea() {
         "automatic",
         detectedSheet,
       );
+      setBlockingIssue(null);
     } catch (caughtError) {
-      console.error(caughtError);
+      if (caughtError instanceof NoValidTransactionsError) {
+        clearAnalysisResults();
+        setBlockingIssue(
+          createBlockingAnalysisIssue("noValidTransactions"),
+        );
+        return;
+      }
+
       resetFileInfo();
-      setError("파일을 읽는 중 오류가 발생했습니다.");
+      setBlockingIssue(
+        createBlockingAnalysisIssue("workbookReadFailed"),
+      );
     } finally {
       setIsProcessingFile(false);
       event.target.value = "";
@@ -940,10 +914,13 @@ export default function UploadArea() {
         sheetDetection={sheetDetection}
         automaticSheetDetection={automaticSheetDetection}
         analysisMode={analysisMode}
-        error={error}
         isProcessingFile={isProcessingFile}
         manualMappingOpen={manualMappingOpen}
-        canConfigureManual={workbook !== null && manualMapping !== null}
+        canConfigureManual={
+          workbook !== null &&
+          manualMapping !== null &&
+          blockingIssue === null
+        }
         onFileChange={handleFileChange}
         onToggleManualMapping={() => {
           setManualMappingOpen((isOpen) => !isOpen);
@@ -951,6 +928,25 @@ export default function UploadArea() {
         }}
         onReturnToAutomatic={handleReturnToAutomatic}
       />
+
+      {blockingIssue && (
+        <AnalysisIssuePanel
+          issues={[blockingIssue]}
+          ctaLabel={
+            workbook && manualMapping && !manualMappingOpen
+              ? "직접 설정해서 분석"
+              : undefined
+          }
+          onCta={
+            workbook && manualMapping && !manualMappingOpen
+              ? () => {
+                  setManualMappingOpen(true);
+                  setManualMappingErrors([]);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {manualMappingOpen && workbook && manualMapping && (
         <ManualMappingPanel
@@ -976,6 +972,13 @@ export default function UploadArea() {
         <div className="mt-5 flex justify-end">
           <ReportPrintButton visible />
         </div>
+      )}
+
+      {summary && partialAnalysisIssues.length > 0 && (
+        <AnalysisIssuePanel
+          issues={partialAnalysisIssues}
+          heading="일부 거래가 분석에서 제외되거나 확인이 필요합니다."
+        />
       )}
 
       {summary && (
@@ -1054,22 +1057,11 @@ export default function UploadArea() {
             </div>
           )}
 
-          {latestBalance === null && (
-            <div
-              className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
-              role="status"
-            >
-              <p className="font-semibold text-amber-900">
-                현재 잔액을 확인할 수 없습니다
-              </p>
-              <p className="mt-1 text-sm leading-6 text-amber-800">
-                예상 월말잔액을 계산하려면 Excel에 잔액 컬럼이 필요합니다.
-                잔액을 추가해 다시 업로드하거나, 자동 인식 수정에서 잔액
-                컬럼을 직접 선택해주세요.
-              </p>
-            </div>
-          )}
         </div>
+      )}
+
+      {summary && limitationIssues.length > 0 && (
+        <AnalysisIssuePanel issues={limitationIssues} />
       )}
 
       {forecasts.length > 0 && (
@@ -1078,14 +1070,13 @@ export default function UploadArea() {
           forecastMonths={forecasts.map((forecast) => forecast.month)}
           scheduledTransactions={scheduledTransactions}
           outOfPeriodCount={outOfPeriodScheduledTransactions.length}
-          storageAvailable={sessionStorageAvailable}
           onAdd={handleScheduledTransactionAdd}
           onRemove={handleScheduledTransactionRemove}
           onReset={handleCurrentFileSettingsReset}
         />
       )}
 
-      {summary && (
+      {summary && forecasts.length > 0 && (
         <ForecastSection
           analysis={selectedAnalysis}
           summary={selectedForecastSummary}
@@ -1113,10 +1104,6 @@ export default function UploadArea() {
       {transactions.length > 0 && (
         <DataQualitySummary summary={dataQualitySummary} />
       )}
-
-      <InvalidDateWarning count={invalidDateCount} />
-
-      <InvalidAmountWarning {...amountWarningCounts} />
 
       {monthlySummaries.length > 0 && (
         <div className="mt-6">
@@ -1364,7 +1351,7 @@ export default function UploadArea() {
       )}
 
       {transactions.length > 0 && (
-        <div className="mt-6">
+        <div id="transaction-classification" className="mt-6 scroll-mt-4">
           <h3 className="mb-3 font-semibold text-slate-900">
             거래 자동 분류 결과
           </h3>

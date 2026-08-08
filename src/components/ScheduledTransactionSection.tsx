@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from "react";
 
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
-import { formatCurrency, formatMonth } from "../utils/formatters";
+import { formatCurrency } from "../utils/formatters";
+import {
+  validateScheduledTransactionForm,
+  type ScheduledTransactionFormErrors,
+} from "./scheduledTransactionFormValidation";
 
 interface ScheduledTransactionSectionProps {
   forecastMonths: string[];
   scheduledTransactions: ScheduledTransaction[];
   outOfPeriodCount: number;
-  storageAvailable: boolean;
   onAdd: (transaction: ScheduledTransaction) => void;
   onRemove: (id: string) => void;
   onReset: () => void;
@@ -17,7 +20,6 @@ export default function ScheduledTransactionSection({
   forecastMonths,
   scheduledTransactions,
   outOfPeriodCount,
-  storageAvailable,
   onAdd,
   onRemove,
   onReset,
@@ -27,32 +29,23 @@ export default function ScheduledTransactionSection({
   const [scheduledType, setScheduledType] =
     useState<ScheduledTransaction["type"]>("expense");
   const [scheduledAmount, setScheduledAmount] = useState("");
-  const [scheduledError, setScheduledError] = useState("");
+  const [scheduledErrors, setScheduledErrors] =
+    useState<ScheduledTransactionFormErrors>({});
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setScheduledError("");
-
     const description = scheduledDescription.trim();
     const amount = Number(scheduledAmount);
-    const scheduledMonth = scheduledDate.slice(0, 7);
+    const errors = validateScheduledTransactionForm({
+      date: scheduledDate,
+      description,
+      amountText: scheduledAmount,
+      forecastMonths,
+    });
 
-    if (!scheduledDate || !description || scheduledAmount.trim() === "") {
-      setScheduledError("예정일, 내용, 금액을 모두 입력해주세요.");
-      return;
-    }
+    setScheduledErrors(errors);
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setScheduledError("금액은 0원보다 큰 숫자로 입력해주세요.");
-      return;
-    }
-
-    if (!forecastMonths.includes(scheduledMonth)) {
-      setScheduledError(
-        `예정일은 Forecast 기간(${forecastMonths
-          .map(formatMonth)
-          .join(", ")}) 안에서 선택해주세요.`,
-      );
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
@@ -67,6 +60,7 @@ export default function ScheduledTransactionSection({
     setScheduledDescription("");
     setScheduledType("expense");
     setScheduledAmount("");
+    setScheduledErrors({});
   }
 
   return (
@@ -90,7 +84,7 @@ export default function ScheduledTransactionSection({
             type="button"
             onClick={() => {
               onReset();
-              setScheduledError("");
+              setScheduledErrors({});
             }}
             className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-800 transition hover:bg-blue-100"
           >
@@ -98,15 +92,6 @@ export default function ScheduledTransactionSection({
           </button>
         </div>
 
-        {!storageAvailable && (
-          <p
-            className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
-            role="status"
-          >
-            브라우저 저장소를 사용할 수 없어 설정은 현재 화면에서만
-            유지됩니다. 재무 분석 기능은 계속 사용할 수 있습니다.
-          </p>
-        )}
       </div>
 
       <form
@@ -120,8 +105,20 @@ export default function ScheduledTransactionSection({
               type="date"
               value={scheduledDate}
               onChange={(event) => setScheduledDate(event.target.value)}
+              aria-describedby={
+                scheduledErrors.date ? "scheduled-date-error" : undefined
+              }
+              aria-invalid={Boolean(scheduledErrors.date)}
               className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
+            {scheduledErrors.date && (
+              <span
+                id="scheduled-date-error"
+                className="mt-1 block text-xs font-medium leading-5 text-red-700"
+              >
+                {scheduledErrors.date}
+              </span>
+            )}
           </label>
           <label className="text-sm font-medium text-slate-700 lg:col-span-2">
             내용
@@ -129,9 +126,23 @@ export default function ScheduledTransactionSection({
               type="text"
               value={scheduledDescription}
               onChange={(event) => setScheduledDescription(event.target.value)}
+              aria-describedby={
+                scheduledErrors.description
+                  ? "scheduled-description-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(scheduledErrors.description)}
               placeholder="예: 거래처 대금 입금"
               className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
+            {scheduledErrors.description && (
+              <span
+                id="scheduled-description-error"
+                className="mt-1 block text-xs font-medium leading-5 text-red-700"
+              >
+                {scheduledErrors.description}
+              </span>
+            )}
           </label>
           <label className="text-sm font-medium text-slate-700">
             입금/출금
@@ -156,17 +167,23 @@ export default function ScheduledTransactionSection({
               step="1"
               value={scheduledAmount}
               onChange={(event) => setScheduledAmount(event.target.value)}
+              aria-describedby={
+                scheduledErrors.amount ? "scheduled-amount-error" : undefined
+              }
+              aria-invalid={Boolean(scheduledErrors.amount)}
               placeholder="0"
               className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-right text-slate-900"
             />
+            {scheduledErrors.amount && (
+              <span
+                id="scheduled-amount-error"
+                className="mt-1 block text-xs font-medium leading-5 text-red-700"
+              >
+                {scheduledErrors.amount}
+              </span>
+            )}
           </label>
         </div>
-
-        {scheduledError && (
-          <p className="mt-3 text-sm font-medium text-red-700" role="alert">
-            {scheduledError}
-          </p>
-        )}
 
         <button
           type="submit"
@@ -231,7 +248,7 @@ export default function ScheduledTransactionSection({
                         type="button"
                         onClick={() => {
                           onRemove(transaction.id);
-                          setScheduledError("");
+                          setScheduledErrors({});
                         }}
                         className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-50"
                       >

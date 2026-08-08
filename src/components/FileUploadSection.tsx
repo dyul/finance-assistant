@@ -16,7 +16,6 @@ interface FileUploadSectionProps {
   sheetDetection: SheetDetectionResult | null;
   automaticSheetDetection: SheetDetectionResult | null;
   analysisMode: AnalysisMode | null;
-  error: string;
   isProcessingFile: boolean;
   manualMappingOpen: boolean;
   canConfigureManual: boolean;
@@ -32,7 +31,6 @@ export default function FileUploadSection({
   sheetDetection,
   automaticSheetDetection,
   analysisMode,
-  error,
   isProcessingFile,
   manualMappingOpen,
   canConfigureManual,
@@ -97,15 +95,6 @@ export default function FileUploadSection({
           수 있습니다.
         </p>
       </div>
-
-      {error && (
-        <p
-          className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
 
       {fileName && (
         <div className="mt-5 rounded-lg bg-slate-50 p-4">

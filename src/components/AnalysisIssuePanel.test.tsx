@@ -1,0 +1,143 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+import AnalysisIssuePanel from "./AnalysisIssuePanel";
+import {
+  createAnalysisLimitationIssues,
+  createBlockingAnalysisIssue,
+  createPartialAnalysisIssues,
+} from "../services/analysisIssuePresentation";
+
+const normalQuality = {
+  totalTransactionCount: 10,
+  amountIncludedCount: 10,
+  dateAnalysisIncludedCount: 10,
+  validDateCount: 10,
+  invalidAmountCount: 0,
+  invalidDateCount: 0,
+  directionIssueCount: 0,
+};
+
+const noAmountIssues = {
+  invalidAmountCount: 0,
+  unknownDirectionCount: 0,
+  directionConflictCount: 0,
+  directionOverrideCount: 0,
+  columnConflictCount: 0,
+};
+
+describe("분석 오류·복구 안내", () => {
+  it("거래 시트 탐지 실패를 blocking으로 표시하고 직접 설정 CTA를 제공한다", () => {
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel
+        issues={[createBlockingAnalysisIssue("transactionSheetNotFound")]}
+        ctaLabel="직접 설정해서 분석"
+        onCta={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain("분석 중단");
+    expect(markup).toContain("거래내역 시트를 자동으로 찾지 못했습니다");
+    expect(markup).toContain("직접 설정해서 분석");
+  });
+
+  it("유효 거래가 0건이면 0원 합계 대신 분석 불가 영향을 안내한다", () => {
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel
+        issues={[createBlockingAnalysisIssue("noValidTransactions")]}
+      />,
+    );
+
+    expect(markup).toContain("분석할 수 있는 거래를 찾지 못했습니다");
+    expect(markup).toContain("재무 요약과 향후 전망을 계산하지 않았습니다");
+    expect(markup).not.toContain("0원");
+  });
+
+  it("금액 오류는 정상 거래 계산을 유지하는 부분 분석 영향을 설명한다", () => {
+    const issues = createPartialAnalysisIssues(
+      {
+        ...normalQuality,
+        totalTransactionCount: 3,
+        amountIncludedCount: 2,
+        dateAnalysisIncludedCount: 2,
+        invalidAmountCount: 1,
+      },
+      { ...noAmountIssues, invalidAmountCount: 1 },
+    );
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("금액을 확인할 수 없는 거래 1건");
+    expect(markup).toContain("해당 거래는 전체 거래 건수에는 포함");
+    expect(markup).toContain('href="#transaction-classification"');
+  });
+
+  it("날짜 오류가 전체 합계에는 포함되고 날짜 기반 분석에는 제외되는 정책을 표시한다", () => {
+    const issues = createPartialAnalysisIssues(
+      {
+        ...normalQuality,
+        totalTransactionCount: 10,
+        dateAnalysisIncludedCount: 8,
+        validDateCount: 8,
+        invalidDateCount: 2,
+      },
+      noAmountIssues,
+    );
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("날짜를 확인할 수 없는 거래 2건");
+    expect(markup).toContain("전체 입출금에는 포함");
+    expect(markup).toContain("월별 현금흐름·반복거래·최근 잔액·향후 전망에서는 제외");
+  });
+
+  it("방향 미확정 거래가 입출금 계산에서 제외됨을 안내한다", () => {
+    const issues = createPartialAnalysisIssues(
+      normalQuality,
+      { ...noAmountIssues, unknownDirectionCount: 1 },
+    );
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("입금·출금 구분을 확인할 수 없는 거래 1건");
+    expect(markup).toContain("입출금 합계와 날짜 기반 분석에서 제외");
+  });
+
+  it("최근 잔액 없음과 localStorage 실패를 blocking이 아닌 기능 제한으로 표시한다", () => {
+    const issues = createAnalysisLimitationIssues({
+      latestBalanceAvailable: false,
+      recurringTransactionCount: 0,
+      storageAvailable: false,
+    });
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("향후 잔액 전망을 계산할 수 없습니다");
+    expect(markup).toContain("입출금 분석은 확인할 수 있지만");
+    expect(markup).toContain("브라우저에 설정을 저장하지 못했습니다");
+    expect(markup).toContain("현재 분석은 계속 사용할 수 있지만");
+    expect(markup).toContain("기능 제한");
+    expect(markup).not.toContain("분석 중단");
+  });
+
+  it("정상 Day 8 조건에는 새 오류 issue가 생성되지 않는다", () => {
+    expect(
+      createPartialAnalysisIssues(normalQuality, noAmountIssues),
+    ).toEqual([]);
+    expect(
+      createAnalysisLimitationIssues({
+        latestBalanceAvailable: true,
+        recurringTransactionCount: 3,
+        storageAvailable: true,
+      }),
+    ).toEqual([]);
+    expect(
+      renderToStaticMarkup(<AnalysisIssuePanel issues={[]} />),
+    ).toBe("");
+  });
+});

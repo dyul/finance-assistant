@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
 import { analyzeDataQuality } from "./dataQualityAnalyzer";
+import { createBlockingAnalysisIssue } from "./analysisIssuePresentation";
 import { calculateFinancialSummary } from "./financialEngine";
 import { mapColumns } from "./columnMapper";
 import {
@@ -109,7 +110,7 @@ describe("수동 시트·컬럼 매핑", () => {
     ]);
   });
 
-  it("입금·출금 분리형 수동 매핑을 기존 parser로 분석한다", () => {
+  it("자동 시트 탐지 blocking 상태에서 수동 매핑으로 정상 분석을 복구한다", () => {
     const workbook = createWorkbook([
       ["일자", "내용", "받은돈", "나간돈", "잔액값"],
       ["2026-01-01", "상품판매", 500_000, "", 500_000],
@@ -126,11 +127,17 @@ describe("수동 시트·컬럼 매핑", () => {
       expenseColumn: "나간돈",
     });
 
+    const automaticDetection = detectTransactionSheet([
+      ...workbook.getSheetCandidates(),
+    ]);
+
+    expect(automaticDetection).toBeNull();
     expect(
-      detectTransactionSheet([
-        ...workbook.getSheetCandidates(),
-      ]),
-    ).toBeNull();
+      createBlockingAnalysisIssue("transactionSheetNotFound"),
+    ).toMatchObject({
+      severity: "blocking",
+      title: "거래내역 시트를 자동으로 찾지 못했습니다.",
+    });
 
     expect(calculateFinancialSummary(parsed.transactions)).toMatchObject({
       totalIncome: 500_000,
