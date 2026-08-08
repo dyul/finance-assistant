@@ -6,6 +6,8 @@ import {
 } from "react";
 import * as XLSX from "xlsx";
 
+import ForecastSection from "./ForecastSection";
+
 import {
   mapColumns,
   type ColumnMapping,
@@ -50,33 +52,10 @@ import {
   getLatestBalance,
 } from "../services/forecastEngine";
 import type { ForecastScenario } from "../services/forecastScenario";
+import { DEFAULT_FORECAST_SCENARIO } from "../services/forecastPresentation";
 
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
 import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
-
-const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
-  "conservative",
-  "base",
-  "optimistic",
-];
-
-const FORECAST_SCENARIO_CONTENT: Record<
-  ForecastScenario,
-  { label: string; description: string }
-> = {
-  conservative: {
-    label: "보수",
-    description: "최근 반복 수입의 변동성을 반영한 하방 시나리오",
-  },
-  base: {
-    label: "기준",
-    description: "최근 수입 추세와 반복 지출을 반영한 기본 시나리오",
-  },
-  optimistic: {
-    label: "낙관",
-    description: "최근 반복 수입의 변동성을 반영한 상방 시나리오",
-  },
-};
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -264,7 +243,7 @@ export default function UploadArea() {
   const [scheduledAmount, setScheduledAmount] = useState("");
   const [scheduledError, setScheduledError] = useState("");
   const [selectedScenario, setSelectedScenario] =
-    useState<ForecastScenario>("base");
+    useState<ForecastScenario>(DEFAULT_FORECAST_SCENARIO);
 
   const recurringTransactions = useMemo(
     () => detectRecurringTransactions(transactions),
@@ -283,9 +262,8 @@ export default function UploadArea() {
       ),
     [recurringTransactions, latestBalance, scheduledTransactions],
   );
-  const { forecasts, cashRisk } = scenarioAnalyses[selectedScenario];
-  const selectedScenarioContent =
-    FORECAST_SCENARIO_CONTENT[selectedScenario];
+  const selectedAnalysis = scenarioAnalyses[selectedScenario];
+  const { forecasts } = selectedAnalysis;
 
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
@@ -316,7 +294,7 @@ export default function UploadArea() {
     setScheduledType("expense");
     setScheduledAmount("");
     setScheduledError("");
-    setSelectedScenario("base");
+    setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     setInvalidDateCount(0);
     setAmountWarningCounts({
       invalidAmountCount: 0,
@@ -555,54 +533,6 @@ export default function UploadArea() {
     }
 
     return `${year}년 ${Number(monthNumber)}월`;
-  }
-
-  function getCashRiskLabel(): string {
-    if (!cashRisk) {
-      return "";
-    }
-
-    if (cashRisk.level === "safe") {
-      return "안전";
-    }
-
-    if (cashRisk.level === "warning") {
-      return "주의";
-    }
-
-    return "위험";
-  }
-
-  function getCashRiskCardStyle(): string {
-    if (!cashRisk) {
-      return "";
-    }
-
-    if (cashRisk.level === "safe") {
-      return "border-emerald-200 bg-emerald-50";
-    }
-
-    if (cashRisk.level === "warning") {
-      return "border-amber-200 bg-amber-50";
-    }
-
-    return "border-red-200 bg-red-50";
-  }
-
-  function getCashRiskBadgeStyle(): string {
-    if (!cashRisk) {
-      return "";
-    }
-
-    if (cashRisk.level === "safe") {
-      return "bg-emerald-100 text-emerald-700";
-    }
-
-    if (cashRisk.level === "warning") {
-      return "bg-amber-100 text-amber-700";
-    }
-
-    return "bg-red-100 text-red-700";
   }
 
   return (
@@ -1000,238 +930,11 @@ export default function UploadArea() {
         </div>
       )}
 
-      {forecasts.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              3개월 현금흐름 Forecast
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              보수·기준·낙관 시나리오별 반복 수입과 예상 월말 잔액을
-              비교할 수 있습니다.
-            </p>
-          </div>
-
-          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div
-              className="flex flex-wrap gap-2"
-              role="tablist"
-              aria-label="Forecast 시나리오 선택"
-            >
-              {FORECAST_SCENARIO_ORDER.map((scenario) => {
-                const content = FORECAST_SCENARIO_CONTENT[scenario];
-                const isSelected = selectedScenario === scenario;
-
-                return (
-                  <button
-                    key={scenario}
-                    type="button"
-                    role="tab"
-                    aria-selected={isSelected}
-                    onClick={() => setSelectedScenario(scenario)}
-                    className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-                      isSelected
-                        ? "bg-blue-600 text-white"
-                        : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    {content.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-3 text-sm text-slate-600">
-              {selectedScenarioContent.description}
-            </p>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[1300px] text-left text-sm">
-              <thead className="bg-blue-50 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3 font-medium">예상월</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    시작 잔액
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    추세·시나리오 반영 반복 예상 입금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    예정 입금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    기본 반복 예상 출금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    예정 출금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    예상 순현금흐름
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    예상 월말 잔액
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {forecasts.map((forecast) => (
-                  <tr key={forecast.month}>
-                    <td className="px-4 py-3 font-semibold">
-                      {formatMonth(forecast.month)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      {formatCurrency(forecast.startingBalance)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">
-                      {formatCurrency(forecast.recurringIncome)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">
-                      {formatCurrency(forecast.scheduledIncome)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(forecast.recurringExpense)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right font-semibold text-red-700">
-                      {formatCurrency(forecast.scheduledExpense)}
-                    </td>
-
-                    <td
-                      className={`px-4 py-3 text-right font-semibold ${
-                        forecast.expectedNetCashFlow >= 0
-                          ? "text-blue-700"
-                          : "text-red-700"
-                      }`}
-                    >
-                      {formatSignedCurrency(
-                        forecast.expectedNetCashFlow,
-                      )}
-                    </td>
-
-                    <td
-                      className={`px-4 py-3 text-right font-bold ${
-                        forecast.expectedEndingBalance >= 0
-                          ? "text-slate-900"
-                          : "text-red-700"
-                      }`}
-                    >
-                      {formatCurrency(
-                        forecast.expectedEndingBalance,
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {cashRisk && (
-        <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              현금 위험 분석 ({selectedScenarioContent.label})
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              선택한 {selectedScenarioContent.label} 시나리오를 기준으로 향후
-              자금 부족 가능성을 분석했습니다.
-            </p>
-          </div>
-
-          <div
-            className={`rounded-xl border p-5 ${getCashRiskCardStyle()}`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm text-slate-600">
-                  위험 수준
-                </p>
-
-                <div className="mt-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-sm font-semibold ${getCashRiskBadgeStyle()}`}
-                  >
-                    {getCashRiskLabel()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <p className="text-sm text-slate-600">
-                  예상 자금 부족 기간
-                </p>
-
-                <p className="mt-1 text-xl font-bold text-slate-900">
-                  {cashRisk.negativeMonthCount}개월
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg bg-white/70 p-4">
-                <p className="text-sm text-slate-500">
-                  최저 예상 잔액
-                </p>
-
-                <p
-                  className={`mt-1 font-bold ${
-                    cashRisk.lowestBalance >= 0
-                      ? "text-slate-900"
-                      : "text-red-700"
-                  }`}
-                >
-                  {formatCurrency(cashRisk.lowestBalance)}
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-white/70 p-4">
-                <p className="text-sm text-slate-500">
-                  최저 잔액 예상월
-                </p>
-
-                <p className="mt-1 font-bold text-slate-900">
-                  {formatMonth(cashRisk.lowestBalanceMonth)}
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-white/70 p-4">
-                <p className="text-sm text-slate-500">
-                  회복 예상월
-                </p>
-
-                <p className="mt-1 font-bold text-slate-900">
-                  {cashRisk.recoveryMonth
-                    ? formatMonth(cashRisk.recoveryMonth)
-                    : "예측기간 내 없음"}
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-white/70 p-4">
-                <p className="text-sm text-slate-500">
-                  필요 현금 버퍼
-                </p>
-
-                <p className="mt-1 font-bold text-red-700">
-                  {formatCurrency(cashRisk.requiredCashBuffer)}
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-5 text-sm leading-6 text-slate-700">
-              {cashRisk.message}
-            </p>
-          </div>
-        </div>
-      )}
+      <ForecastSection
+        analysis={selectedAnalysis}
+        selectedScenario={selectedScenario}
+        onScenarioChange={setSelectedScenario}
+      />
 
       {categorySummaries.length > 0 && (
         <div className="mt-6">
