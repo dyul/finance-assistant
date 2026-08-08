@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import * as XLSX from "xlsx";
 
 import {
   InvalidAmountWarning,
@@ -7,7 +8,14 @@ import {
   TransactionAmountCells,
   TransactionDateValue,
 } from "./UploadArea";
-import { createForecastAnalysis } from "../services/forecastEngine";
+import {
+  createForecastAnalysis,
+  getLatestBalance,
+} from "../services/forecastEngine";
+import { mapColumns } from "../services/columnMapper";
+import { detectRecurringTransactions } from "../services/recurringTransactionDetector";
+import { parseTransactions } from "../services/transactionParser";
+import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
 
 describe("UploadArea 날짜 오류 안내", () => {
   it("날짜 오류 건수와 분석 제외 안내를 표시한다", () => {
@@ -115,5 +123,96 @@ describe("UploadArea 날짜 오류 안내", () => {
       forecasts: [],
       cashRisk: null,
     });
+  });
+
+  it("Excel 업로드 행부터 반복 수입 추세 Forecast까지 연결한다", () => {
+    const workbook = XLSX.utils.book_new();
+    const rows: unknown[][] = [
+      ["거래일", "적요", "입금액", "출금액", "잔액"],
+    ];
+    const incomes = [900_000, 950_000, 1_000_000];
+    const electricityExpenses = [80_000, 82_000, 85_000];
+
+    for (let index = 0; index < 3; index += 1) {
+      const month = index + 1;
+
+      rows.push([
+        new Date(2026, index, 5),
+        "상품판매",
+        incomes[index],
+        0,
+        0,
+      ]);
+      rows.push([
+        new Date(2026, index, 10),
+        "월세",
+        0,
+        700_000,
+        0,
+      ]);
+      rows.push([
+        new Date(2026, index, 20),
+        "전기요금",
+        0,
+        electricityExpenses[index],
+        month === 3 ? -497_000 : 0,
+      ]);
+    }
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(rows),
+      "거래내역",
+    );
+    const workbookData = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const uploadedWorkbook = XLSX.read(workbookData, { type: "array" });
+    const sheet = uploadedWorkbook.Sheets[uploadedWorkbook.SheetNames[0]];
+    const objectRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      sheet,
+      { defval: "" },
+    );
+    const mappings = mapColumns(Object.keys(objectRows[0]));
+    const standardizedRows = standardizeTransactionRows(
+      objectRows,
+      mappings,
+    );
+    const parsed = parseTransactions(standardizedRows);
+    const recurringTransactions = detectRecurringTransactions(
+      parsed.transactions,
+    );
+    const incomeTransaction = recurringTransactions.find(
+      (transaction) => transaction.description === "상품판매",
+    );
+    const analysis = createForecastAnalysis(
+      recurringTransactions,
+      getLatestBalance(parsed.transactions),
+    );
+
+    expect(parsed.invalidDateCount).toBe(0);
+    expect(incomeTransaction?.monthlyAmounts).toEqual([
+      { month: "2026-01", amount: 900_000 },
+      { month: "2026-02", amount: 950_000 },
+      { month: "2026-03", amount: 1_000_000 },
+    ]);
+    expect(analysis.forecasts.map((forecast) => forecast.recurringIncome)).toEqual([
+      1_050_000,
+      1_100_000,
+      1_150_000,
+    ]);
+    expect(analysis.forecasts[0]?.expectedEndingBalance).toBeCloseTo(
+      -229_333.33,
+      2,
+    );
+    expect(analysis.forecasts[1]?.expectedEndingBalance).toBeCloseTo(
+      88_333.33,
+      2,
+    );
+    expect(analysis.forecasts[2]?.expectedEndingBalance).toBeCloseTo(
+      456_000,
+      2,
+    );
   });
 });

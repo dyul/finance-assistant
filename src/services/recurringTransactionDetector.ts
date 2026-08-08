@@ -2,6 +2,7 @@ import {
   hasResolvedTransactionAmount,
   type Transaction,
 } from "./transactionParser";
+import type { MonthlyAmount } from "./incomeTrend";
 
 export type RecurringTransactionType = "income" | "expense";
 
@@ -15,6 +16,7 @@ export interface RecurringTransaction {
   type: RecurringTransactionType;
 
   averageAmount: number;
+  monthlyAmounts: MonthlyAmount[];
   occurrenceCount: number;
   activeMonthCount: number;
 
@@ -32,7 +34,7 @@ interface RecurringGroup {
   type: RecurringTransactionType;
 
   amounts: number[];
-  months: Set<string>;
+  monthlyAmounts: Map<string, number>;
 }
 
 function normalizeDescription(description: string): string {
@@ -125,7 +127,10 @@ export function detectRecurringTransactions(
 
     if (existingGroup) {
       existingGroup.amounts.push(amount);
-      existingGroup.months.add(month);
+      existingGroup.monthlyAmounts.set(
+        month,
+        (existingGroup.monthlyAmounts.get(month) ?? 0) + amount,
+      );
 
       continue;
     }
@@ -136,14 +141,18 @@ export function detectRecurringTransactions(
       categoryName: transaction.categoryName,
       type,
       amounts: [amount],
-      months: new Set([month]),
+      monthlyAmounts: new Map([[month, amount]]),
     });
   }
 
   const recurringTransactions: RecurringTransaction[] = [];
 
   for (const group of groups.values()) {
-    const months = Array.from(group.months).sort();
+    const monthlyAmounts = Array.from(
+      group.monthlyAmounts,
+      ([month, amount]) => ({ month, amount }),
+    ).sort((a, b) => a.month.localeCompare(b.month));
+    const months = monthlyAmounts.map((item) => item.month);
 
     /*
      * 최소 2개 이상의 서로 다른 월에서 발생해야
@@ -187,6 +196,7 @@ export function detectRecurringTransactions(
       type: group.type,
 
       averageAmount,
+      monthlyAmounts,
       occurrenceCount: group.amounts.length,
       activeMonthCount: months.length,
 

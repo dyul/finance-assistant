@@ -1,4 +1,9 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import * as XLSX from "xlsx";
 
 import {
@@ -38,17 +43,15 @@ import {
 
 import {
   detectRecurringTransactions,
-  type RecurringTransaction,
 } from "../services/recurringTransactionDetector";
 
 import {
   createForecastAnalysis,
   getLatestBalance,
-  type MonthlyForecast,
 } from "../services/forecastEngine";
 
-import type { CashRiskAnalysis } from "../services/cashRiskAnalyzer";
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
+import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -225,16 +228,6 @@ export default function UploadArea() {
 
   const [insights, setInsights] = useState<FinancialInsight[]>([]);
 
-  const [recurringTransactions, setRecurringTransactions] = useState<
-    RecurringTransaction[]
-  >([]);
-
-  const [forecasts, setForecasts] = useState<MonthlyForecast[]>([]);
-
-  const [cashRisk, setCashRisk] = useState<CashRiskAnalysis | null>(null);
-
-  const [latestBalance, setLatestBalance] = useState<number | null>(null);
-
   const [scheduledTransactions, setScheduledTransactions] = useState<
     ScheduledTransaction[]
   >([]);
@@ -245,6 +238,24 @@ export default function UploadArea() {
   >("expense");
   const [scheduledAmount, setScheduledAmount] = useState("");
   const [scheduledError, setScheduledError] = useState("");
+
+  const recurringTransactions = useMemo(
+    () => detectRecurringTransactions(transactions),
+    [transactions],
+  );
+  const latestBalance = useMemo(
+    () => getLatestBalance(transactions),
+    [transactions],
+  );
+  const { forecasts, cashRisk } = useMemo(
+    () =>
+      createForecastAnalysis(
+        recurringTransactions,
+        latestBalance,
+        scheduledTransactions,
+      ),
+    [recurringTransactions, latestBalance, scheduledTransactions],
+  );
 
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
@@ -269,10 +280,6 @@ export default function UploadArea() {
     setCategorySummaries([]);
     setMonthlyCategorySummaries([]);
     setInsights([]);
-    setRecurringTransactions([]);
-    setForecasts([]);
-    setCashRisk(null);
-    setLatestBalance(null);
     setScheduledTransactions([]);
     setScheduledDate("");
     setScheduledDescription("");
@@ -286,19 +293,6 @@ export default function UploadArea() {
       directionConflictCount: 0,
       columnConflictCount: 0,
     });
-  }
-
-  function recalculateForecast(
-    nextScheduledTransactions: ScheduledTransaction[],
-  ) {
-    const analysis = createForecastAnalysis(
-      recurringTransactions,
-      latestBalance,
-      nextScheduledTransactions,
-    );
-
-    setForecasts(analysis.forecasts);
-    setCashRisk(analysis.cashRisk);
   }
 
   function handleScheduledTransactionSubmit(
@@ -344,7 +338,6 @@ export default function UploadArea() {
     ];
 
     setScheduledTransactions(nextScheduledTransactions);
-    recalculateForecast(nextScheduledTransactions);
     setScheduledDate("");
     setScheduledDescription("");
     setScheduledType("expense");
@@ -357,7 +350,6 @@ export default function UploadArea() {
     );
 
     setScheduledTransactions(nextScheduledTransactions);
-    recalculateForecast(nextScheduledTransactions);
     setScheduledError("");
   }
 
@@ -430,20 +422,10 @@ export default function UploadArea() {
           range: headerRowIndex,
         });
 
-      const standardizedRows = objectRows.map((row) => {
-        const standardizedRow: Record<string, unknown> = {};
-
-        for (const mapping of mappings) {
-          if (mapping.standardName === "unknown") {
-            continue;
-          }
-
-          standardizedRow[mapping.standardName] =
-            row[mapping.originalName];
-        }
-
-        return standardizedRow;
-      });
+      const standardizedRows = standardizeTransactionRows(
+        objectRows,
+        mappings,
+      );
 
       const parsedResult = parseTransactions(standardizedRows, {
         date1904,
@@ -472,19 +454,6 @@ export default function UploadArea() {
         monthlyCategoryResults,
       );
 
-      const recurringResults = detectRecurringTransactions(
-        parsedResult.transactions,
-      );
-
-      const currentBalance = getLatestBalance(
-        parsedResult.transactions,
-      );
-
-      const {
-        forecasts: forecastResults,
-        cashRisk: riskAnalysis,
-      } = createForecastAnalysis(recurringResults, currentBalance);
-
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
       setSheetNames(workbook.SheetNames);
@@ -495,8 +464,6 @@ export default function UploadArea() {
       setCategorySummaries(categoryResults);
       setMonthlyCategorySummaries(monthlyCategoryResults);
       setInsights(generatedInsights);
-      setRecurringTransactions(recurringResults);
-      setLatestBalance(currentBalance);
       setInvalidDateCount(parsedResult.invalidDateCount);
       setAmountWarningCounts({
         invalidAmountCount: parsedResult.invalidAmountCount,
@@ -504,8 +471,6 @@ export default function UploadArea() {
         directionConflictCount: parsedResult.directionConflictCount,
         columnConflictCount: parsedResult.columnConflictCount,
       });
-      setForecasts(forecastResults);
-      setCashRisk(riskAnalysis);
     } catch (caughtError) {
       console.error(caughtError);
       resetFileInfo();
@@ -1012,13 +977,13 @@ export default function UploadArea() {
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              반복 거래 평균, 확정 예정 거래와 최근 잔액을 기준으로 예상
-              월말 잔액까지 계산했습니다.
+              반복 수입의 최근 월별 추세, 반복 지출 평균, 확정 예정 거래와
+              최근 잔액을 기준으로 예상 월말 잔액까지 계산했습니다.
             </p>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[1250px] text-left text-sm">
+            <table className="w-full min-w-[1450px] text-left text-sm">
               <thead className="bg-blue-50 text-slate-700">
                 <tr>
                   <th className="px-4 py-3 font-medium">예상월</th>
@@ -1027,6 +992,9 @@ export default function UploadArea() {
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
                     기본 반복 예상 입금
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    추세 반영 반복 예상 입금
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
                     예정 입금
@@ -1058,6 +1026,10 @@ export default function UploadArea() {
                     </td>
 
                     <td className="px-4 py-3 text-right text-emerald-700">
+                      {formatCurrency(forecast.baseRecurringIncome)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">
                       {formatCurrency(forecast.recurringIncome)}
                     </td>
 

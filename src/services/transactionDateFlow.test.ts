@@ -171,6 +171,10 @@ describe("거래 날짜 처리 흐름", () => {
         activeMonthCount: 2,
         firstMonth: "2024-01",
         lastMonth: "2024-02",
+        monthlyAmounts: [
+          { month: "2024-01", amount: 10_000 },
+          { month: "2024-02", amount: 10_000 },
+        ],
       }),
     ]);
   });

@@ -1,6 +1,7 @@
 import type { RecurringTransaction } from "./recurringTransactionDetector";
 import type { Transaction } from "./transactionParser";
 import type { ScheduledTransaction } from "./scheduledTransaction";
+import { getTrendAdjustedIncome } from "./incomeTrend";
 import {
   analyzeCashRisk,
   type CashRiskAnalysis,
@@ -9,6 +10,7 @@ import {
 export interface MonthlyForecast {
   month: string;
 
+  baseRecurringIncome: number;
   recurringIncome: number;
   scheduledIncome: number;
   expectedIncome: number;
@@ -98,7 +100,7 @@ export function generateCashFlowForecast(
     return [];
   }
 
-  let recurringIncome = 0;
+  let baseRecurringIncome = 0;
   let recurringExpense = 0;
 
   let recurringIncomeCount = 0;
@@ -106,7 +108,7 @@ export function generateCashFlowForecast(
 
   for (const transaction of recurringTransactions) {
     if (transaction.type === "income") {
-      recurringIncome += transaction.averageAmount;
+      baseRecurringIncome += transaction.averageAmount;
       recurringIncomeCount += 1;
     }
 
@@ -134,6 +136,18 @@ export function generateCashFlowForecast(
     const monthStartingBalance = projectedBalance;
 
     const forecastMonth = formatMonth(target.year, target.month);
+    const recurringIncome = recurringTransactions.reduce(
+      (total, transaction) =>
+        transaction.type === "income"
+          ? total +
+            getTrendAdjustedIncome(
+              transaction.monthlyAmounts,
+              forecastMonth,
+              transaction.averageAmount,
+            )
+          : total,
+      0,
+    );
     const monthlyScheduledTransactions = scheduledTransactions.filter(
       (transaction) => transaction.date.slice(0, 7) === forecastMonth,
     );
@@ -164,6 +178,7 @@ export function generateCashFlowForecast(
     forecasts.push({
       month: forecastMonth,
 
+      baseRecurringIncome,
       recurringIncome,
       scheduledIncome,
       expectedIncome,
