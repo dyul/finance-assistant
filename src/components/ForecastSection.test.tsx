@@ -110,12 +110,16 @@ function createAnalyses(
 function renderScenario(
   analyses: ScenarioForecastAnalyses,
   scenario: ForecastScenario,
+  scheduledTransactions: ScheduledTransaction[] = [],
 ): string {
   return renderToStaticMarkup(
     <ForecastSection
       analysis={analyses[scenario]}
       selectedScenario={scenario}
       onScenarioChange={() => undefined}
+      categorySummaries={[]}
+      monthlyCategorySummaries={[]}
+      scheduledTransactions={scheduledTransactions}
     />,
   );
 }
@@ -230,5 +234,41 @@ describe("ForecastSection UI", () => {
       6,
     );
     expect(restoredSummary).toEqual(originalSummary);
+  });
+
+  it("선택 시나리오의 위험 결과로 추천 액션을 렌더링한다", () => {
+    const analyses = createAnalyses();
+
+    for (const scenario of ["conservative", "base", "optimistic"] as const) {
+      const markup = renderScenario(analyses, scenario);
+      const requiredBuffer = Math.round(
+        analyses[scenario].cashRisk?.requiredCashBuffer ?? 0,
+      ).toLocaleString("ko-KR");
+
+      expect(markup).toContain("추천 액션");
+      expect(markup).toContain("단기 자금 확보 필요");
+      expect(markup).toContain(`${requiredBuffer}원`);
+    }
+  });
+
+  it("예정 입금이 있으면 일정 확인 액션을 표시한다", () => {
+    const scheduledTransactions: ScheduledTransaction[] = [
+      {
+        id: "confirmed-income",
+        date: "2026-05-10",
+        description: "거래처 입금",
+        type: "income",
+        amount: 500_000,
+      },
+    ];
+    const markup = renderScenario(
+      createAnalyses(scheduledTransactions),
+      "base",
+      scheduledTransactions,
+    );
+
+    expect(markup).toContain("예정 입금 일정 확인");
+    expect(markup).toContain("2026년 5월 10일");
+    expect(markup).toContain("500,000원");
   });
 });

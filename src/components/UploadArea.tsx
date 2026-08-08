@@ -1084,6 +1084,9 @@ export default function UploadArea() {
         analysis={selectedAnalysis}
         selectedScenario={selectedScenario}
         onScenarioChange={setSelectedScenario}
+        categorySummaries={categorySummaries}
+        monthlyCategorySummaries={monthlyCategorySummaries}
+        scheduledTransactions={scheduledTransactions}
       />
 
       {categorySummaries.length > 0 && (

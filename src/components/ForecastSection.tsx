@@ -4,6 +4,14 @@ import {
   DEFAULT_FORECAST_SCENARIO,
 } from "../services/forecastPresentation";
 import type { ForecastScenario } from "../services/forecastScenario";
+import {
+  createActionGuide,
+  type ActionGuideItem,
+  type ActionPriority,
+} from "../services/actionGuide";
+import type { CategorySummary } from "../services/categoryAggregator";
+import type { MonthlyCategorySummary } from "../services/monthlyCategoryAggregator";
+import type { ScheduledTransaction } from "../services/scheduledTransaction";
 
 const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
   "conservative",
@@ -80,6 +88,9 @@ export function ForecastScenarioTabs({
 
 interface ForecastSectionProps extends ForecastScenarioTabsProps {
   analysis: ForecastAnalysis;
+  categorySummaries: CategorySummary[];
+  monthlyCategorySummaries: MonthlyCategorySummary[];
+  scheduledTransactions: ScheduledTransaction[];
 }
 
 function formatCurrency(value: number): string {
@@ -138,10 +149,91 @@ function getRiskStyles(
   };
 }
 
+const ACTION_PRIORITY_CONTENT: Record<
+  ActionPriority,
+  { label: string; card: string; badge: string }
+> = {
+  critical: {
+    label: "긴급",
+    card: "border-red-200 bg-red-50",
+    badge: "bg-red-100 text-red-700",
+  },
+  high: {
+    label: "높음",
+    card: "border-orange-200 bg-orange-50",
+    badge: "bg-orange-100 text-orange-700",
+  },
+  medium: {
+    label: "보통",
+    card: "border-amber-200 bg-amber-50",
+    badge: "bg-amber-100 text-amber-700",
+  },
+  low: {
+    label: "낮음",
+    card: "border-slate-200 bg-slate-50",
+    badge: "bg-slate-200 text-slate-700",
+  },
+};
+
+export function ActionGuideSection({
+  items,
+}: {
+  items: ActionGuideItem[];
+}) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="mt-6" aria-labelledby="action-guide-heading">
+      <div className="mb-3">
+        <h3 id="action-guide-heading" className="font-semibold text-slate-900">
+          추천 액션
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          선택한 시나리오의 Forecast와 지출 분석을 바탕으로 우선순위를
+          정리했습니다.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {items.map((item) => {
+          const content = ACTION_PRIORITY_CONTENT[item.priority];
+
+          return (
+            <article
+              key={item.id}
+              className={`rounded-xl border p-5 ${content.card}`}
+              data-testid="action-guide-card"
+              data-action-type={item.type}
+            >
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${content.badge}`}
+              >
+                {content.label}
+              </span>
+              <h4 className="mt-3 font-bold text-slate-900">{item.title}</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {item.message}
+              </p>
+              <p className="mt-3 rounded-lg bg-white/70 p-3 text-sm font-medium leading-6 text-slate-800">
+                → {item.action}
+              </p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function ForecastSection({
   analysis,
   selectedScenario,
   onScenarioChange,
+  categorySummaries,
+  monthlyCategorySummaries,
+  scheduledTransactions,
 }: ForecastSectionProps) {
   const { forecasts, cashRisk } = analysis;
 
@@ -152,6 +244,13 @@ export default function ForecastSection({
   const summary = createForecastSummary(forecasts, cashRisk);
   const scenarioContent = FORECAST_SCENARIO_CONTENT[selectedScenario];
   const riskStyles = cashRisk ? getRiskStyles(cashRisk.level) : null;
+  const actionGuideItems = createActionGuide({
+    forecasts,
+    cashRisk,
+    categorySummaries,
+    monthlyCategorySummaries,
+    scheduledTransactions,
+  });
 
   return (
     <>
@@ -358,6 +457,8 @@ export default function ForecastSection({
           </div>
         </section>
       )}
+
+      <ActionGuideSection items={actionGuideItems} />
     </>
   );
 }
