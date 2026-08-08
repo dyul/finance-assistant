@@ -5,45 +5,42 @@ import { analyzeDataQuality } from "./dataQualityAnalyzer";
 import { calculateFinancialSummary } from "./financialEngine";
 import { mapColumns } from "./columnMapper";
 import {
+  createExcelWorkbook,
+  type ExcelWorkbook,
+} from "./excelWorkbook";
+import {
   countValidManualTransactions,
   convertManualMappingToColumnMappings,
   createManualMappingPrefill,
-  getManualWorksheetPreview,
-  getManualWorksheetRows,
   validateManualMapping,
   type ManualTransactionMapping,
 } from "./manualMapping";
-import {
-  detectTransactionSheet,
-  getWorksheetDetectionRows,
-} from "./transactionSheetDetector";
+import { detectTransactionSheet } from "./transactionSheetDetector";
 import { parseTransactions } from "./transactionParser";
 import { standardizeTransactionRows } from "./transactionRowStandardizer";
 
 function createWorkbook(
   rows: unknown[][],
   sheetName = "Sheet1",
-): XLSX.WorkBook {
+): ExcelWorkbook {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.aoa_to_sheet(rows),
     sheetName,
   );
-  return workbook;
+  return createExcelWorkbook(workbook);
 }
 
 function analyzeManualMapping(
-  workbook: XLSX.WorkBook,
+  workbook: ExcelWorkbook,
   mapping: ManualTransactionMapping,
 ) {
-  const preview = getManualWorksheetPreview(
-    workbook,
+  const preview = workbook.getPreview(
     mapping.sheetName,
     mapping.headerRowIndex,
   );
-  const rows = getManualWorksheetRows(
-    workbook,
+  const rows = workbook.getRows(
     mapping.sheetName,
     mapping.headerRowIndex,
   );
@@ -81,9 +78,9 @@ describe("수동 시트·컬럼 매핑", () => {
   });
 
   it("시트와 헤더 행에 따라 컬럼 후보와 preview를 다시 만든다", () => {
-    const workbook = XLSX.utils.book_new();
+    const rawWorkbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(
-      workbook,
+      rawWorkbook,
       XLSX.utils.aoa_to_sheet([
         ["안내"],
         ["거래일", "입금액"],
@@ -92,19 +89,20 @@ describe("수동 시트·컬럼 매핑", () => {
       "A",
     );
     XLSX.utils.book_append_sheet(
-      workbook,
+      rawWorkbook,
       XLSX.utils.aoa_to_sheet([
         ["작성일", "금액", "거래구분"],
         ["2026-02-01", 200_000, "입금"],
       ]),
       "B",
     );
+    const workbook = createExcelWorkbook(rawWorkbook);
 
-    expect(getManualWorksheetPreview(workbook, "A", 1)).toMatchObject({
+    expect(workbook.getPreview("A", 1)).toMatchObject({
       columns: ["거래일", "입금액"],
       rows: [{ 거래일: "2026-01-01", 입금액: 100_000 }],
     });
-    expect(getManualWorksheetPreview(workbook, "B", 0).columns).toEqual([
+    expect(workbook.getPreview("B", 0).columns).toEqual([
       "작성일",
       "금액",
       "거래구분",
@@ -130,11 +128,7 @@ describe("수동 시트·컬럼 매핑", () => {
 
     expect(
       detectTransactionSheet([
-        {
-          sheetName: "Sheet1",
-          sheetIndex: 0,
-          rows: getWorksheetDetectionRows(workbook.Sheets.Sheet1),
-        },
+        ...workbook.getSheetCandidates(),
       ]),
     ).toBeNull();
 
@@ -270,11 +264,11 @@ describe("수동 시트·컬럼 매핑", () => {
       incomeColumn: "입금값",
       expenseColumn: "출금값",
     };
-    const preview = getManualWorksheetPreview(workbook, "Sheet1", 3);
+    const preview = workbook.getPreview("Sheet1", 3);
 
     expect(
       validateManualMapping(mapping, {
-        sheetNames: workbook.SheetNames,
+        sheetNames: workbook.sheetNames,
         columns: preview.columns,
         headerRowLimit: preview.headerRowLimit,
       }),
@@ -291,8 +285,8 @@ describe("수동 시트·컬럼 매핑", () => {
       ["2026-01-02", "월세", "출금", 700_000, -200_000],
       ["날짜미정", "확인", "입금", "금액미정", -200_000],
     ]);
-    const preview = getManualWorksheetPreview(workbook, "Sheet1", 0);
-    const rows = getManualWorksheetRows(workbook, "Sheet1", 0);
+    const preview = workbook.getPreview("Sheet1", 0);
+    const rows = workbook.getRows("Sheet1", 0);
     const automaticMappings = mapColumns(preview.columns, rows);
     const automaticParsed = parseTransactions(
       standardizeTransactionRows(rows, automaticMappings),

@@ -31,6 +31,11 @@ describe("normalizeTransactionDate", () => {
     expect(normalizeTransactionDate(60.999_999)).toBeNull();
   });
 
+  it("1900 가상 윤일 전후의 실제 날짜를 유지한다", () => {
+    expect(normalizeTransactionDate(59)).toBe("1900-02-28");
+    expect(normalizeTransactionDate(61)).toBe("1900-03-01");
+  });
+
   it("음수와 숫자가 아닌 경계값을 날짜 체계와 관계없이 거부한다", () => {
     const invalidValues = [
       -1,

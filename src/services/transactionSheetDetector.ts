@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 import type { ColumnMapping } from "./columnMapper";
 import { mapColumns } from "./columnMapper";
 import type { DateNormalizationOptions } from "./dateNormalizer";
@@ -358,33 +356,4 @@ export function detectTransactionSheet(
     amountStructure: selected.amountStructure,
     ambiguous,
   };
-}
-
-export function getWorksheetDetectionRows(
-  worksheet: XLSX.WorkSheet,
-): unknown[][] {
-  const reference = worksheet["!ref"];
-
-  if (!reference) {
-    return [];
-  }
-
-  const usedRange = XLSX.utils.decode_range(reference);
-  const range = {
-    s: { r: 0, c: usedRange.s.c },
-    e: {
-      r: Math.min(
-        usedRange.e.r,
-        MAX_HEADER_SCAN_ROWS + MAX_DATA_SAMPLE_ROWS - 1,
-      ),
-      c: usedRange.e.c,
-    },
-  };
-
-  return XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-    header: 1,
-    defval: "",
-    blankrows: true,
-    range,
-  });
 }

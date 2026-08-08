@@ -1,6 +1,11 @@
 import type { ActionPriority } from "./actionGuide";
 import type { CashRiskLevel } from "./cashRiskAnalyzer";
 import type { ForecastScenario } from "./forecastScenario";
+import {
+  formatCurrency,
+  formatMonth,
+  formatSignedCurrency,
+} from "../utils/formatters";
 
 const SCENARIO_LABELS: Record<ForecastScenario, string> = {
   conservative: "보수",
@@ -22,24 +27,15 @@ const PRIORITY_LABELS: Record<ActionPriority, string> = {
 };
 
 export function formatReportCurrency(value: number): string {
-  const roundedValue = Math.round(value);
-  const amount = Math.abs(roundedValue).toLocaleString("ko-KR");
-
-  return roundedValue < 0 ? `-${amount}원` : `${amount}원`;
+  return formatCurrency(value);
 }
 
 export function formatReportSignedCurrency(value: number): string {
-  return value > 0
-    ? `+${formatReportCurrency(value)}`
-    : formatReportCurrency(value);
+  return formatSignedCurrency(value);
 }
 
 export function formatReportMonth(month: string): string {
-  const [year, monthNumber] = month.split("-");
-
-  return year && monthNumber
-    ? `${year}년 ${Number(monthNumber)}월`
-    : month;
+  return formatMonth(month);
 }
 
 export function formatReportDate(date: Date): string {

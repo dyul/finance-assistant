@@ -2,13 +2,18 @@ import {
   useMemo,
   useState,
   type ChangeEvent,
-  type FormEvent,
 } from "react";
-import * as XLSX from "xlsx";
 
 import ForecastSection from "./ForecastSection";
 import AnalysisReport from "./AnalysisReport";
 import ManualMappingPanel from "./ManualMappingPanel";
+import FileUploadSection from "./FileUploadSection";
+import {
+  getConfidenceLabel,
+  getConfidenceStyle,
+  type AnalysisMode,
+} from "./fileUploadPresentation";
+import ScheduledTransactionSection from "./ScheduledTransactionSection";
 
 import {
   mapColumns,
@@ -67,9 +72,7 @@ import {
 } from "../services/dataQualityAnalyzer";
 import {
   detectTransactionSheet,
-  getWorksheetDetectionRows,
   type SheetDetectionResult,
-  type TransactionSheetCandidate,
 } from "../services/transactionSheetDetector";
 import { createActionGuide } from "../services/actionGuide";
 import { printAnalysisReport } from "../services/reportPresentation";
@@ -82,11 +85,16 @@ import {
   countValidManualTransactions,
   convertManualMappingToColumnMappings,
   createManualMappingPrefill,
-  getManualWorksheetPreview,
-  getManualWorksheetRows,
   validateManualMapping,
   type ManualTransactionMapping,
 } from "../services/manualMapping";
+import { loadExcelWorkbook } from "../services/excelWorkbookLoader";
+import type { ExcelWorkbook } from "../services/excelWorkbook";
+import {
+  formatCurrency,
+  formatMonth,
+  formatSignedCurrency,
+} from "../utils/formatters";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -120,8 +128,6 @@ interface AmountWarningCounts {
   columnConflictCount: number;
 }
 
-type AnalysisMode = "automatic" | "manual";
-
 function getManualAmountStructure(
   amountMode: ManualTransactionMapping["amountMode"],
 ): SheetDetectionResult["amountStructure"] {
@@ -145,15 +151,6 @@ function formatOriginalAmountValues(
     `금액 ${values.amount ?? "없음"}`,
     `구분 ${values.direction ?? "없음"}`,
   ].join(", ");
-}
-
-function formatCurrency(value: number): string {
-  const roundedValue = Math.round(value);
-  const formattedValue = Math.abs(roundedValue).toLocaleString("ko-KR");
-
-  return roundedValue < 0
-    ? `-${formattedValue}원`
-    : `${formattedValue}원`;
 }
 
 export function InvalidAmountWarning({
@@ -369,10 +366,10 @@ export function ReportPrintButton({
 }
 
 export default function UploadArea() {
-  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [workbook, setWorkbook] = useState<ExcelWorkbook | null>(null);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const sheetNames = workbook?.sheetNames ?? [];
   const [sheetDetection, setSheetDetection] =
     useState<SheetDetectionResult | null>(null);
   const [automaticSheetDetection, setAutomaticSheetDetection] =
@@ -403,13 +400,6 @@ export default function UploadArea() {
   const [scheduledTransactions, setScheduledTransactions] = useState<
     ScheduledTransaction[]
   >([]);
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledDescription, setScheduledDescription] = useState("");
-  const [scheduledType, setScheduledType] = useState<
-    ScheduledTransaction["type"]
-  >("expense");
-  const [scheduledAmount, setScheduledAmount] = useState("");
-  const [scheduledError, setScheduledError] = useState("");
   const [selectedScenario, setSelectedScenario] =
     useState<ForecastScenario>(DEFAULT_FORECAST_SCENARIO);
   const [sessionStorageAvailable, setSessionStorageAvailable] =
@@ -421,8 +411,7 @@ export default function UploadArea() {
       workbook &&
       manualMappingSheetName !== undefined &&
       manualMappingHeaderRowIndex !== undefined
-        ? getManualWorksheetPreview(
-            workbook,
+        ? workbook.getPreview(
             manualMappingSheetName,
             manualMappingHeaderRowIndex,
           )
@@ -510,12 +499,12 @@ export default function UploadArea() {
     });
 
   const [error, setError] = useState("");
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   function resetFileInfo() {
     setWorkbook(null);
     setFileName("");
     setFileSize("");
-    setSheetNames([]);
     setSheetDetection(null);
     setAutomaticSheetDetection(null);
     setAnalysisMode(null);
@@ -530,11 +519,6 @@ export default function UploadArea() {
     setMonthlyCategorySummaries([]);
     setInsights([]);
     setScheduledTransactions([]);
-    setScheduledDate("");
-    setScheduledDescription("");
-    setScheduledType("expense");
-    setScheduledAmount("");
-    setScheduledError("");
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     setSessionStorageAvailable(true);
     setInvalidDateCount(0);
@@ -568,43 +552,9 @@ export default function UploadArea() {
     saveCurrentFileSettings(scenario, scheduledTransactions);
   }
 
-  function handleScheduledTransactionSubmit(
-    event: FormEvent<HTMLFormElement>,
+  function handleScheduledTransactionAdd(
+    scheduledTransaction: ScheduledTransaction,
   ) {
-    event.preventDefault();
-    setScheduledError("");
-
-    const description = scheduledDescription.trim();
-    const amount = Number(scheduledAmount);
-    const scheduledMonth = scheduledDate.slice(0, 7);
-    const forecastMonths = forecasts.map((forecast) => forecast.month);
-
-    if (!scheduledDate || !description || scheduledAmount.trim() === "") {
-      setScheduledError("예정일, 내용, 금액을 모두 입력해주세요.");
-      return;
-    }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setScheduledError("금액은 0원보다 큰 숫자로 입력해주세요.");
-      return;
-    }
-
-    if (!forecastMonths.includes(scheduledMonth)) {
-      setScheduledError(
-        `예정일은 Forecast 기간(${forecastMonths
-          .map(formatMonth)
-          .join(", ")}) 안에서 선택해주세요.`,
-      );
-      return;
-    }
-
-    const scheduledTransaction: ScheduledTransaction = {
-      id: crypto.randomUUID(),
-      date: scheduledDate,
-      description,
-      type: scheduledType,
-      amount,
-    };
     const nextScheduledTransactions = [
       ...scheduledTransactions,
       scheduledTransaction,
@@ -615,10 +565,6 @@ export default function UploadArea() {
       selectedScenario,
       nextScheduledTransactions,
     );
-    setScheduledDate("");
-    setScheduledDescription("");
-    setScheduledType("expense");
-    setScheduledAmount("");
   }
 
   function handleScheduledTransactionRemove(id: string) {
@@ -631,7 +577,6 @@ export default function UploadArea() {
       selectedScenario,
       nextScheduledTransactions,
     );
-    setScheduledError("");
   }
 
   function handleCurrentFileSettingsReset() {
@@ -639,20 +584,15 @@ export default function UploadArea() {
 
     setScheduledTransactions([]);
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
-    setScheduledError("");
     setSessionStorageAvailable(cleared);
   }
 
   function createManualPrefillForLocation(
-    sourceWorkbook: XLSX.WorkBook,
+    sourceWorkbook: ExcelWorkbook,
     sheetName: string,
     headerRowIndex: number,
   ): ManualTransactionMapping {
-    const preview = getManualWorksheetPreview(
-      sourceWorkbook,
-      sheetName,
-      headerRowIndex,
-    );
+    const preview = sourceWorkbook.getPreview(sheetName, headerRowIndex);
     const automaticMappings = mapColumns(preview.columns, preview.rows);
 
     return createManualMappingPrefill(
@@ -663,15 +603,14 @@ export default function UploadArea() {
   }
 
   function applyWorkbookAnalysis(
-    sourceWorkbook: XLSX.WorkBook,
+    sourceWorkbook: ExcelWorkbook,
     selectedSheetName: string,
     headerRowIndex: number,
     mappings: ColumnMapping[],
     mode: AnalysisMode,
     automaticDetection: SheetDetectionResult | null = null,
   ) {
-    const objectRows = getManualWorksheetRows(
-      sourceWorkbook,
+    const objectRows = sourceWorkbook.getRows(
       selectedSheetName,
       headerRowIndex,
     );
@@ -679,10 +618,8 @@ export default function UploadArea() {
       objectRows,
       mappings,
     );
-    const date1904 =
-      sourceWorkbook.Workbook?.WBProps?.date1904 === true;
     const parsedResult = parseTransactions(standardizedRows, {
-      date1904,
+      date1904: sourceWorkbook.date1904,
     });
     const validTransactionRowCount = countValidManualTransactions(
       parsedResult.transactions,
@@ -716,7 +653,7 @@ export default function UploadArea() {
         : {
             sheetName: selectedSheetName,
             sheetIndex:
-              sourceWorkbook.SheetNames.indexOf(selectedSheetName),
+              sourceWorkbook.sheetNames.indexOf(selectedSheetName),
             headerRowIndex,
             score: 0,
             confidence: "high" as const,
@@ -781,7 +718,7 @@ export default function UploadArea() {
     }
 
     const validationErrors = validateManualMapping(manualMapping, {
-      sheetNames: workbook.SheetNames,
+      sheetNames: workbook.sheetNames,
       columns: manualWorksheetPreview.columns,
       headerRowLimit: manualWorksheetPreview.headerRowLimit,
     });
@@ -820,13 +757,11 @@ export default function UploadArea() {
       return;
     }
 
-    const preview = getManualWorksheetPreview(
-      workbook,
+    const preview = workbook.getPreview(
       automaticSheetDetection.sheetName,
       automaticSheetDetection.headerRowIndex,
     );
-    const rows = getManualWorksheetRows(
-      workbook,
+    const rows = workbook.getRows(
       automaticSheetDetection.sheetName,
       automaticSheetDetection.headerRowIndex,
     );
@@ -861,6 +796,10 @@ export default function UploadArea() {
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    if (isProcessingFile) {
+      return;
+    }
+
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -881,13 +820,13 @@ export default function UploadArea() {
       return;
     }
 
+    setIsProcessingFile(true);
+
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const uploadedWorkbook = XLSX.read(arrayBuffer, { type: "array" });
-      const date1904 =
-        uploadedWorkbook.Workbook?.WBProps?.date1904 === true;
+      const uploadedWorkbook = await loadExcelWorkbook(arrayBuffer);
 
-      if (uploadedWorkbook.SheetNames.length === 0) {
+      if (uploadedWorkbook.sheetNames.length === 0) {
         throw new Error("엑셀 시트를 찾을 수 없습니다.");
       }
 
@@ -899,27 +838,19 @@ export default function UploadArea() {
       setWorkbook(uploadedWorkbook);
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
-      setSheetNames(uploadedWorkbook.SheetNames);
       setScheduledTransactions(
         restoredFileSession.session.scheduledTransactions,
       );
       setSelectedScenario(restoredFileSession.session.selectedScenario);
       setSessionStorageAvailable(savedRestoredSession);
 
-      const sheetCandidates: TransactionSheetCandidate[] =
-        uploadedWorkbook.SheetNames.map((sheetName, sheetIndex) => ({
-          sheetName,
-          sheetIndex,
-          rows: getWorksheetDetectionRows(
-            uploadedWorkbook.Sheets[sheetName],
-          ),
-        }));
+      const sheetCandidates = uploadedWorkbook.getSheetCandidates();
       const detectedSheet = detectTransactionSheet(sheetCandidates, {
-        date1904,
+        date1904: uploadedWorkbook.date1904,
       });
 
       if (!detectedSheet) {
-        const firstSheetName = uploadedWorkbook.SheetNames[0];
+        const firstSheetName = uploadedWorkbook.sheetNames[0];
 
         setAutomaticSheetDetection(null);
         setManualMapping(
@@ -935,13 +866,11 @@ export default function UploadArea() {
         return;
       }
 
-      const automaticPreview = getManualWorksheetPreview(
-        uploadedWorkbook,
+      const automaticPreview = uploadedWorkbook.getPreview(
         detectedSheet.sheetName,
         detectedSheet.headerRowIndex,
       );
-      const automaticRows = getManualWorksheetRows(
-        uploadedWorkbook,
+      const automaticRows = uploadedWorkbook.getRows(
         detectedSheet.sheetName,
         detectedSheet.headerRowIndex,
       );
@@ -971,205 +900,36 @@ export default function UploadArea() {
       resetFileInfo();
       setError("파일을 읽는 중 오류가 발생했습니다.");
     } finally {
+      setIsProcessingFile(false);
       event.target.value = "";
     }
-  }
-
-  function getConfidenceLabel(
-    confidence: ColumnMapping["confidence"],
-  ): string {
-    if (confidence === "high") {
-      return "높음";
-    }
-
-    if (confidence === "medium") {
-      return "보통";
-    }
-
-    return "낮음";
-  }
-
-  function getConfidenceStyle(
-    confidence: ColumnMapping["confidence"],
-  ): string {
-    if (confidence === "high") {
-      return "bg-emerald-50 text-emerald-700";
-    }
-
-    if (confidence === "medium") {
-      return "bg-amber-50 text-amber-700";
-    }
-
-    return "bg-red-50 text-red-700";
-  }
-
-  function formatSignedCurrency(value: number): string {
-    if (value > 0) {
-      return `+${formatCurrency(value)}`;
-    }
-
-    return formatCurrency(value);
-  }
-
-  function formatMonth(month: string): string {
-    const [year, monthNumber] = month.split("-");
-
-    if (!year || !monthNumber) {
-      return month;
-    }
-
-    return `${year}년 ${Number(monthNumber)}월`;
   }
 
   return (
     <>
       <section className="screen-only rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-slate-900">
-          엑셀 업로드
-        </h2>
-
-        <p className="mt-1 text-sm text-slate-500">
-          평소 사용하던 재무 엑셀을 그대로 올려주세요.
-        </p>
-      </div>
-
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 px-6 py-10 text-center transition hover:border-blue-400 hover:bg-blue-50">
-        <span className="font-medium text-slate-700">
-          엑셀 파일 선택
-        </span>
-
-        <span className="mt-1 text-sm text-slate-500">
-          .xlsx 또는 .xls 파일
-        </span>
-
-        <input
-          type="file"
-          accept=".xlsx,.xls"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </label>
-
-      {error && (
-        <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
-
-      {fileName && (
-        <div className="mt-5 rounded-lg bg-slate-50 p-4">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-6">
-            <div>
-              <dt className="text-slate-500">파일명</dt>
-              <dd className="mt-1 font-medium text-slate-900">
-                {fileName}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-slate-500">파일 크기</dt>
-              <dd className="mt-1 font-medium text-slate-900">
-                {fileSize}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-slate-500">시트 수</dt>
-              <dd className="mt-1 font-medium text-slate-900">
-                {sheetNames.length}개
-              </dd>
-            </div>
-
-            {analysisMode && (
-              <div>
-                <dt className="text-slate-500">분석 방식</dt>
-                <dd className="mt-1 font-medium text-slate-900">
-                  {analysisMode === "automatic" ? "자동" : "수동"}
-                </dd>
-              </div>
-            )}
-
-            {sheetDetection && (
-              <>
-                <div>
-                  <dt className="text-slate-500">분석 시트</dt>
-                  <dd className="mt-1 font-medium text-slate-900">
-                    {sheetDetection.sheetName}
-                    {analysisMode === "manual" && (
-                      <span className="ml-2 text-xs text-slate-500">
-                        헤더 {sheetDetection.headerRowIndex + 1}행
-                      </span>
-                    )}
-                  </dd>
-                </div>
-
-                {analysisMode === "automatic" && (
-                  <div>
-                    <dt className="text-slate-500">자동 선택 신뢰도</dt>
-                    <dd className="mt-1">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getConfidenceStyle(
-                          sheetDetection.confidence,
-                        )}`}
-                      >
-                        {getConfidenceLabel(sheetDetection.confidence)}
-                      </span>
-                    </dd>
-                  </div>
-                )}
-              </>
-            )}
-          </dl>
-
-          {sheetDetection && (
-            <p className="mt-4 border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
-              {sheetDetection.reasons.join(" · ")}
-            </p>
-          )}
-
-          {workbook && manualMapping && (
-            <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setManualMappingOpen((isOpen) => !isOpen);
-                  setManualMappingErrors([]);
-                }}
-                className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-                  automaticSheetDetection === null
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : automaticSheetDetection.confidence !== "high"
-                      ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                {manualMappingOpen
-                  ? "직접 설정 닫기"
-                  : automaticSheetDetection
-                    ? automaticSheetDetection.confidence === "high"
-                      ? "자동 인식 수정"
-                      : "자동 인식 결과 직접 확인"
-                    : "직접 설정해서 분석"}
-              </button>
-
-              {analysisMode === "manual" && automaticSheetDetection && (
-                <button
-                  type="button"
-                  onClick={handleReturnToAutomatic}
-                  className="rounded-md border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-                >
-                  자동 인식으로 되돌리기
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <FileUploadSection
+        fileName={fileName}
+        fileSize={fileSize}
+        sheetNames={sheetNames}
+        sheetDetection={sheetDetection}
+        automaticSheetDetection={automaticSheetDetection}
+        analysisMode={analysisMode}
+        error={error}
+        isProcessingFile={isProcessingFile}
+        manualMappingOpen={manualMappingOpen}
+        canConfigureManual={workbook !== null && manualMapping !== null}
+        onFileChange={handleFileChange}
+        onToggleManualMapping={() => {
+          setManualMappingOpen((isOpen) => !isOpen);
+          setManualMappingErrors([]);
+        }}
+        onReturnToAutomatic={handleReturnToAutomatic}
+      />
 
       {manualMappingOpen && workbook && manualMapping && (
         <ManualMappingPanel
-          sheetNames={workbook.SheetNames}
+          sheetNames={workbook.sheetNames}
           mapping={manualMapping}
           preview={manualWorksheetPreview}
           errors={manualMappingErrors}
@@ -1388,183 +1148,16 @@ export default function UploadArea() {
       )}
 
       {forecasts.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">
-              확정 예정 거래
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              향후 3개월 안에 확정된 입금이나 출금을 추가하면 Forecast와
-              현금 위험도가 바로 다시 계산됩니다.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
-              <p className="leading-6">
-                예정거래와 시나리오 선택은 파일별로 이 브라우저에 자동
-                저장됩니다. 원본 Excel 거래내역과 분석 결과는 브라우저
-                저장소에 저장하지 않습니다.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleCurrentFileSettingsReset}
-                className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-800 transition hover:bg-blue-100"
-              >
-                이 파일 설정 초기화
-              </button>
-            </div>
-
-            {!sessionStorageAvailable && (
-              <p
-                className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
-                role="status"
-              >
-                브라우저 저장소를 사용할 수 없어 설정은 현재 화면에서만
-                유지됩니다. 재무 분석 기능은 계속 사용할 수 있습니다.
-              </p>
-            )}
-          </div>
-
-          <form
-            className="rounded-lg border border-slate-200 bg-slate-50 p-4"
-            onSubmit={handleScheduledTransactionSubmit}
-          >
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <label className="text-sm font-medium text-slate-700">
-                예정일
-                <input
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(event) => setScheduledDate(event.target.value)}
-                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700 lg:col-span-2">
-                내용
-                <input
-                  type="text"
-                  value={scheduledDescription}
-                  onChange={(event) =>
-                    setScheduledDescription(event.target.value)
-                  }
-                  placeholder="예: 거래처 대금 입금"
-                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                입금/출금
-                <select
-                  value={scheduledType}
-                  onChange={(event) =>
-                    setScheduledType(
-                      event.target.value as ScheduledTransaction["type"],
-                    )
-                  }
-                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
-                >
-                  <option value="income">입금</option>
-                  <option value="expense">출금</option>
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                금액
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={scheduledAmount}
-                  onChange={(event) => setScheduledAmount(event.target.value)}
-                  placeholder="0"
-                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-right text-slate-900"
-                />
-              </label>
-            </div>
-
-            {scheduledError && (
-              <p className="mt-3 text-sm font-medium text-red-700" role="alert">
-                {scheduledError}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              추가
-            </button>
-          </form>
-
-          {outOfPeriodScheduledTransactions.length > 0 && (
-            <p
-              className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
-              role="status"
-            >
-              저장된 예정거래 중 현재 Forecast 기간 밖인 거래가{" "}
-              {outOfPeriodScheduledTransactions.length}건 있습니다. 목록에는
-              유지하지만 이번 Forecast 계산에서는 제외했습니다.
-            </p>
-          )}
-
-          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-            {scheduledTransactions.length === 0 ? (
-              <p className="bg-white px-4 py-5 text-sm text-slate-500">
-                추가된 확정 예정 거래가 없습니다.
-              </p>
-            ) : (
-              <table className="w-full min-w-[700px] text-left text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">예정일</th>
-                    <th className="px-4 py-3 font-medium">내용</th>
-                    <th className="px-4 py-3 font-medium">유형</th>
-                    <th className="px-4 py-3 text-right font-medium">금액</th>
-                    <th className="px-4 py-3 text-right font-medium">관리</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {[...scheduledTransactions]
-                    .sort((a, b) => a.date.localeCompare(b.date))
-                    .map((transaction) => (
-                      <tr key={transaction.id}>
-                        <td className="px-4 py-3">{transaction.date}</td>
-                        <td className="px-4 py-3 font-medium">
-                          {transaction.description}
-                        </td>
-                        <td className="px-4 py-3">
-                          {transaction.type === "income" ? "입금" : "출금"}
-                        </td>
-                        <td
-                          className={`px-4 py-3 text-right font-semibold ${
-                            transaction.type === "income"
-                              ? "text-emerald-700"
-                              : "text-red-700"
-                          }`}
-                        >
-                          {formatCurrency(transaction.amount)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleScheduledTransactionRemove(transaction.id)
-                            }
-                            className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-50"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+        <ScheduledTransactionSection
+          key={fileName}
+          forecastMonths={forecasts.map((forecast) => forecast.month)}
+          scheduledTransactions={scheduledTransactions}
+          outOfPeriodCount={outOfPeriodScheduledTransactions.length}
+          storageAvailable={sessionStorageAvailable}
+          onAdd={handleScheduledTransactionAdd}
+          onRemove={handleScheduledTransactionRemove}
+          onReset={handleCurrentFileSettingsReset}
+        />
       )}
 
       <ForecastSection

@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 export type NormalizedDate = `${number}-${number}-${number}`;
 
 export interface DateNormalizationOptions {
@@ -18,28 +16,9 @@ export type DateNormalizationResult =
       reason: string;
     };
 
-interface ExcelDateParts {
-  y: number;
-  m: number;
-  d: number;
-}
-
 const EXCEL_1900_MAX_EXCLUSIVE = 2_958_466;
 const EXCEL_1904_MAX_EXCLUSIVE = 2_957_004;
-
-function isExcelDateParts(value: unknown): value is ExcelDateParts {
-  if (value === null || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Record<string, unknown>;
-
-  return (
-    Number.isInteger(candidate.y) &&
-    Number.isInteger(candidate.m) &&
-    Number.isInteger(candidate.d)
-  );
-}
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -146,18 +125,26 @@ function normalizeExcelSerial(
   }
 
   const dateSerial = Math.floor(value);
-  const parsedDate: unknown = XLSX.SSF.parse_date_code(dateSerial, {
-    date1904,
-  });
+  const adjustedSerial =
+    !date1904 && dateSerial > 60 ? dateSerial - 1 : dateSerial;
+  const epoch = date1904
+    ? Date.UTC(1904, 0, 1)
+    : Date.UTC(1899, 11, 31);
+  const parsedDate = new Date(
+    epoch + adjustedSerial * MILLISECONDS_PER_DAY,
+  );
+  const year = parsedDate.getUTCFullYear();
+  const month = parsedDate.getUTCMonth() + 1;
+  const day = parsedDate.getUTCDate();
 
   if (
-    !isExcelDateParts(parsedDate) ||
-    !isValidCalendarDate(parsedDate.y, parsedDate.m, parsedDate.d)
+    Number.isNaN(parsedDate.getTime()) ||
+    !isValidCalendarDate(year, month, day)
   ) {
     return null;
   }
 
-  return formatDate(parsedDate.y, parsedDate.m, parsedDate.d);
+  return formatDate(year, month, day);
 }
 
 function normalizeDateObject(value: Date): NormalizedDate | null {

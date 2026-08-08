@@ -3,9 +3,9 @@ import * as XLSX from "xlsx";
 
 import { calculateFinancialSummary } from "./financialEngine";
 import { mapColumns } from "./columnMapper";
+import { createExcelWorkbook } from "./excelWorkbook";
 import {
   detectTransactionSheet,
-  getWorksheetDetectionRows,
   type TransactionSheetCandidate,
 } from "./transactionSheetDetector";
 import { parseTransactions } from "./transactionParser";
@@ -194,15 +194,9 @@ describe("detectTransactionSheet", () => {
       type: "array",
     });
     const uploadedWorkbook = XLSX.read(workbookData, { type: "array" });
-    const candidates = uploadedWorkbook.SheetNames.map(
-      (sheetName, sheetIndex) => ({
-        sheetName,
-        sheetIndex,
-        rows: getWorksheetDetectionRows(
-          uploadedWorkbook.Sheets[sheetName],
-        ),
-      }),
-    );
+    const candidates = createExcelWorkbook(
+      uploadedWorkbook,
+    ).getSheetCandidates();
     const detected = detectTransactionSheet(candidates);
 
     expect(detected).toMatchObject({

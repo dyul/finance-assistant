@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 import type {
   ColumnMapping,
   StandardColumn,
@@ -40,7 +38,6 @@ export interface ManualMappingValidationContext {
 }
 
 const MANUAL_HEADER_LIMIT = 30;
-const MANUAL_PREVIEW_ROW_COUNT = 5;
 
 const DISPLAY_NAMES: Record<StandardColumn, string> = {
   date: "거래일",
@@ -53,102 +50,6 @@ const DISPLAY_NAMES: Record<StandardColumn, string> = {
   category: "분류",
   unknown: "미분류",
 };
-
-function getWorksheetRange(
-  worksheet: XLSX.WorkSheet,
-): XLSX.Range | null {
-  const reference = worksheet["!ref"];
-
-  return reference ? XLSX.utils.decode_range(reference) : null;
-}
-
-function createUniqueColumnNames(headerRow: unknown[]): string[] {
-  const usedNames = new Map<string, number>();
-
-  return headerRow.map((cell, columnIndex) => {
-    const rawName = String(cell ?? "").trim();
-    const baseName = rawName || `빈 컬럼 ${columnIndex + 1}`;
-    const duplicateCount = usedNames.get(baseName) ?? 0;
-
-    usedNames.set(baseName, duplicateCount + 1);
-
-    return duplicateCount === 0
-      ? baseName
-      : `${baseName}_${duplicateCount}`;
-  });
-}
-
-export function getManualWorksheetPreview(
-  workbook: XLSX.WorkBook,
-  sheetName: string,
-  headerRowIndex: number,
-): ManualWorksheetPreview {
-  const worksheet = workbook.Sheets[sheetName];
-
-  if (!worksheet) {
-    return { columns: [], rows: [], headerRowLimit: 0 };
-  }
-
-  const usedRange = getWorksheetRange(worksheet);
-
-  if (!usedRange) {
-    return { columns: [], rows: [], headerRowLimit: 1 };
-  }
-
-  const headerRowLimit = Math.max(
-    1,
-    Math.min(MANUAL_HEADER_LIMIT, usedRange.e.r + 1),
-  );
-
-  if (headerRowIndex < 0 || headerRowIndex >= headerRowLimit) {
-    return { columns: [], rows: [], headerRowLimit };
-  }
-
-  const previewRange = {
-    s: { r: headerRowIndex, c: usedRange.s.c },
-    e: {
-      r: Math.min(
-        usedRange.e.r,
-        headerRowIndex + MANUAL_PREVIEW_ROW_COUNT,
-      ),
-      c: usedRange.e.c,
-    },
-  };
-  const arrayRows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-    header: 1,
-    defval: "",
-    blankrows: true,
-    range: previewRange,
-  });
-  const columns = createUniqueColumnNames(arrayRows[0] ?? []);
-  const rows = arrayRows.slice(1).map((row) =>
-    Object.fromEntries(
-      columns.map((column, columnIndex) => [
-        column,
-        row[columnIndex] ?? "",
-      ]),
-    ),
-  );
-
-  return { columns, rows, headerRowLimit };
-}
-
-export function getManualWorksheetRows(
-  workbook: XLSX.WorkBook,
-  sheetName: string,
-  headerRowIndex: number,
-): Record<string, unknown>[] {
-  const worksheet = workbook.Sheets[sheetName];
-
-  if (!worksheet) {
-    return [];
-  }
-
-  return XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-    defval: "",
-    range: headerRowIndex,
-  });
-}
 
 export function countValidManualTransactions(
   transactions: Transaction[],

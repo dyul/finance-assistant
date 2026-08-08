@@ -8,6 +8,11 @@ import {
   type ActionGuideItem,
   type ActionPriority,
 } from "../services/actionGuide";
+import {
+  formatCurrency,
+  formatMonth,
+  formatSignedCurrency,
+} from "../utils/formatters";
 
 const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
   "conservative",
@@ -85,27 +90,6 @@ export function ForecastScenarioTabs({
 interface ForecastSectionProps extends ForecastScenarioTabsProps {
   analysis: ForecastAnalysis;
   actionGuideItems: ActionGuideItem[];
-}
-
-function formatCurrency(value: number): string {
-  const roundedValue = Math.round(value);
-  const formattedValue = Math.abs(roundedValue).toLocaleString("ko-KR");
-
-  return roundedValue < 0
-    ? `-${formattedValue}원`
-    : `${formattedValue}원`;
-}
-
-function formatSignedCurrency(value: number): string {
-  return value > 0 ? `+${formatCurrency(value)}` : formatCurrency(value);
-}
-
-function formatMonth(month: string): string {
-  const [year, monthNumber] = month.split("-");
-
-  return year && monthNumber
-    ? `${year}년 ${Number(monthNumber)}월`
-    : month;
 }
 
 function getRiskLabel(level: NonNullable<ForecastAnalysis["cashRisk"]>["level"]): string {
