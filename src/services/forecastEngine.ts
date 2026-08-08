@@ -3,12 +3,18 @@ import type { Transaction } from "./transactionParser";
 import type { ScheduledTransaction } from "./scheduledTransaction";
 import { getTrendAdjustedIncome } from "./incomeTrend";
 import {
+  applyScenarioToRecurringIncome,
+  calculateScenarioSpread,
+  type ForecastScenario,
+} from "./forecastScenario";
+import {
   analyzeCashRisk,
   type CashRiskAnalysis,
 } from "./cashRiskAnalyzer";
 
 export interface MonthlyForecast {
   month: string;
+  scenario: ForecastScenario;
 
   baseRecurringIncome: number;
   recurringIncome: number;
@@ -26,6 +32,16 @@ export interface MonthlyForecast {
   recurringIncomeCount: number;
   recurringExpenseCount: number;
 }
+
+export interface ForecastAnalysis {
+  forecasts: MonthlyForecast[];
+  cashRisk: CashRiskAnalysis | null;
+}
+
+export type ScenarioForecastAnalyses = Record<
+  ForecastScenario,
+  ForecastAnalysis
+>;
 
 function getNextMonth(
   year: number,
@@ -73,6 +89,7 @@ export function generateCashFlowForecast(
   startingBalance: number,
   forecastMonths = 3,
   scheduledTransactions: ScheduledTransaction[] = [],
+  scenario: ForecastScenario = "base",
 ): MonthlyForecast[] {
   if (recurringTransactions.length === 0) {
     return [];
@@ -137,15 +154,29 @@ export function generateCashFlowForecast(
 
     const forecastMonth = formatMonth(target.year, target.month);
     const recurringIncome = recurringTransactions.reduce(
-      (total, transaction) =>
-        transaction.type === "income"
-          ? total +
-            getTrendAdjustedIncome(
-              transaction.monthlyAmounts,
-              forecastMonth,
-              transaction.averageAmount,
-            )
-          : total,
+      (total, transaction) => {
+        if (transaction.type !== "income") {
+          return total;
+        }
+
+        const trendAdjustedIncome = getTrendAdjustedIncome(
+          transaction.monthlyAmounts,
+          forecastMonth,
+          transaction.averageAmount,
+        );
+        const scenarioSpread = calculateScenarioSpread(
+          transaction.monthlyAmounts,
+        );
+
+        return (
+          total +
+          applyScenarioToRecurringIncome(
+            trendAdjustedIncome,
+            scenarioSpread,
+            scenario,
+          )
+        );
+      },
       0,
     );
     const monthlyScheduledTransactions = scheduledTransactions.filter(
@@ -177,6 +208,7 @@ export function generateCashFlowForecast(
 
     forecasts.push({
       month: forecastMonth,
+      scenario,
 
       baseRecurringIncome,
       recurringIncome,
@@ -203,10 +235,8 @@ export function createForecastAnalysis(
   recurringTransactions: RecurringTransaction[],
   currentBalance: number | null,
   scheduledTransactions: ScheduledTransaction[] = [],
-): {
-  forecasts: MonthlyForecast[];
-  cashRisk: CashRiskAnalysis | null;
-} {
+  scenario: ForecastScenario = "base",
+): ForecastAnalysis {
   if (currentBalance === null) {
     return {
       forecasts: [],
@@ -219,10 +249,38 @@ export function createForecastAnalysis(
     currentBalance,
     3,
     scheduledTransactions,
+    scenario,
   );
 
   return {
     forecasts,
     cashRisk: analyzeCashRisk(forecasts),
+  };
+}
+
+export function createScenarioForecastAnalyses(
+  recurringTransactions: RecurringTransaction[],
+  currentBalance: number | null,
+  scheduledTransactions: ScheduledTransaction[] = [],
+): ScenarioForecastAnalyses {
+  return {
+    conservative: createForecastAnalysis(
+      recurringTransactions,
+      currentBalance,
+      scheduledTransactions,
+      "conservative",
+    ),
+    base: createForecastAnalysis(
+      recurringTransactions,
+      currentBalance,
+      scheduledTransactions,
+      "base",
+    ),
+    optimistic: createForecastAnalysis(
+      recurringTransactions,
+      currentBalance,
+      scheduledTransactions,
+      "optimistic",
+    ),
   };
 }

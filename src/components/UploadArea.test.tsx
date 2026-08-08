@@ -10,6 +10,7 @@ import {
 } from "./UploadArea";
 import {
   createForecastAnalysis,
+  createScenarioForecastAnalyses,
   getLatestBalance,
 } from "../services/forecastEngine";
 import { mapColumns } from "../services/columnMapper";
@@ -190,6 +191,10 @@ describe("UploadArea 날짜 오류 안내", () => {
       recurringTransactions,
       getLatestBalance(parsed.transactions),
     );
+    const scenarioAnalyses = createScenarioForecastAnalyses(
+      recurringTransactions,
+      getLatestBalance(parsed.transactions),
+    );
 
     expect(parsed.invalidDateCount).toBe(0);
     expect(incomeTransaction?.monthlyAmounts).toEqual([
@@ -214,5 +219,12 @@ describe("UploadArea 날짜 오류 안내", () => {
       456_000,
       2,
     );
+    expect(
+      scenarioAnalyses.conservative.forecasts[0]?.recurringIncome,
+    ).toBeLessThan(analysis.forecasts[0]?.recurringIncome ?? 0);
+    expect(
+      scenarioAnalyses.optimistic.forecasts[0]?.recurringIncome,
+    ).toBeGreaterThan(analysis.forecasts[0]?.recurringIncome ?? 0);
+    expect(scenarioAnalyses.base.forecasts).toEqual(analysis.forecasts);
   });
 });

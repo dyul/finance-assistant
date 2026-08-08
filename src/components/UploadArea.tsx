@@ -46,12 +46,37 @@ import {
 } from "../services/recurringTransactionDetector";
 
 import {
-  createForecastAnalysis,
+  createScenarioForecastAnalyses,
   getLatestBalance,
 } from "../services/forecastEngine";
+import type { ForecastScenario } from "../services/forecastScenario";
 
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
 import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
+
+const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
+  "conservative",
+  "base",
+  "optimistic",
+];
+
+const FORECAST_SCENARIO_CONTENT: Record<
+  ForecastScenario,
+  { label: string; description: string }
+> = {
+  conservative: {
+    label: "보수",
+    description: "최근 반복 수입의 변동성을 반영한 하방 시나리오",
+  },
+  base: {
+    label: "기준",
+    description: "최근 수입 추세와 반복 지출을 반영한 기본 시나리오",
+  },
+  optimistic: {
+    label: "낙관",
+    description: "최근 반복 수입의 변동성을 반영한 상방 시나리오",
+  },
+};
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -238,6 +263,8 @@ export default function UploadArea() {
   >("expense");
   const [scheduledAmount, setScheduledAmount] = useState("");
   const [scheduledError, setScheduledError] = useState("");
+  const [selectedScenario, setSelectedScenario] =
+    useState<ForecastScenario>("base");
 
   const recurringTransactions = useMemo(
     () => detectRecurringTransactions(transactions),
@@ -247,15 +274,18 @@ export default function UploadArea() {
     () => getLatestBalance(transactions),
     [transactions],
   );
-  const { forecasts, cashRisk } = useMemo(
+  const scenarioAnalyses = useMemo(
     () =>
-      createForecastAnalysis(
+      createScenarioForecastAnalyses(
         recurringTransactions,
         latestBalance,
         scheduledTransactions,
       ),
     [recurringTransactions, latestBalance, scheduledTransactions],
   );
+  const { forecasts, cashRisk } = scenarioAnalyses[selectedScenario];
+  const selectedScenarioContent =
+    FORECAST_SCENARIO_CONTENT[selectedScenario];
 
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
@@ -286,6 +316,7 @@ export default function UploadArea() {
     setScheduledType("expense");
     setScheduledAmount("");
     setScheduledError("");
+    setSelectedScenario("base");
     setInvalidDateCount(0);
     setAmountWarningCounts({
       invalidAmountCount: 0,
@@ -977,13 +1008,47 @@ export default function UploadArea() {
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              반복 수입의 최근 월별 추세, 반복 지출 평균, 확정 예정 거래와
-              최근 잔액을 기준으로 예상 월말 잔액까지 계산했습니다.
+              보수·기준·낙관 시나리오별 반복 수입과 예상 월말 잔액을
+              비교할 수 있습니다.
+            </p>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div
+              className="flex flex-wrap gap-2"
+              role="tablist"
+              aria-label="Forecast 시나리오 선택"
+            >
+              {FORECAST_SCENARIO_ORDER.map((scenario) => {
+                const content = FORECAST_SCENARIO_CONTENT[scenario];
+                const isSelected = selectedScenario === scenario;
+
+                return (
+                  <button
+                    key={scenario}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedScenario(scenario)}
+                    className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {content.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 text-sm text-slate-600">
+              {selectedScenarioContent.description}
             </p>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[1450px] text-left text-sm">
+            <table className="w-full min-w-[1300px] text-left text-sm">
               <thead className="bg-blue-50 text-slate-700">
                 <tr>
                   <th className="px-4 py-3 font-medium">예상월</th>
@@ -991,10 +1056,7 @@ export default function UploadArea() {
                     시작 잔액
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
-                    기본 반복 예상 입금
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    추세 반영 반복 예상 입금
+                    추세·시나리오 반영 반복 예상 입금
                   </th>
                   <th className="px-4 py-3 text-right font-medium">
                     예정 입금
@@ -1023,10 +1085,6 @@ export default function UploadArea() {
 
                     <td className="px-4 py-3 text-right">
                       {formatCurrency(forecast.startingBalance)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatCurrency(forecast.baseRecurringIncome)}
                     </td>
 
                     <td className="px-4 py-3 text-right font-semibold text-emerald-700">
@@ -1080,11 +1138,12 @@ export default function UploadArea() {
         <div className="mt-6">
           <div className="mb-3">
             <h3 className="font-semibold text-slate-900">
-              현금 위험 분석
+              현금 위험 분석 ({selectedScenarioContent.label})
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Forecast를 기준으로 향후 자금 부족 가능성을 분석했습니다.
+              선택한 {selectedScenarioContent.label} 시나리오를 기준으로 향후
+              자금 부족 가능성을 분석했습니다.
             </p>
           </div>
 

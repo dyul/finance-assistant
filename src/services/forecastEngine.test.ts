@@ -5,8 +5,10 @@ import type { ScheduledTransaction } from "./scheduledTransaction";
 import { calculateIncomeTrend } from "./incomeTrend";
 import {
   createForecastAnalysis,
+  createScenarioForecastAnalyses,
   generateCashFlowForecast,
 } from "./forecastEngine";
+import { calculateScenarioSpread } from "./forecastScenario";
 
 function createRecurringTransaction(
   overrides: Partial<RecurringTransaction>,
@@ -215,6 +217,179 @@ describe("반복 수입 추세 계산", () => {
       229_333.33,
       2,
     );
+  });
+});
+
+describe("3개월 Forecast 시나리오", () => {
+  it("3개월 증가 수입의 평균 절대 변동률을 계산한다", () => {
+    const transaction = createIncomeRecurringTransaction([
+      900_000,
+      950_000,
+      1_000_000,
+    ]);
+    const expectedSpread =
+      (Math.abs(950_000 / 900_000 - 1) +
+        Math.abs(1_000_000 / 950_000 - 1)) /
+      2;
+
+    expect(
+      calculateScenarioSpread(transaction.monthlyAmounts),
+    ).toBeCloseTo(expectedSpread, 10);
+  });
+
+  it("작은 변동성은 최소 5%로 제한한다", () => {
+    const transaction = createIncomeRecurringTransaction([100, 102, 104]);
+
+    expect(calculateScenarioSpread(transaction.monthlyAmounts)).toBe(0.05);
+  });
+
+  it("큰 변동성은 최대 20%로 제한한다", () => {
+    const transaction = createIncomeRecurringTransaction([100, 200, 400]);
+
+    expect(calculateScenarioSpread(transaction.monthlyAmounts)).toBe(0.2);
+  });
+
+  it("3개월 미만 데이터는 기본 10%를 사용한다", () => {
+    const transaction = createIncomeRecurringTransaction([900, 1000]);
+
+    expect(calculateScenarioSpread(transaction.monthlyAmounts)).toBe(0.1);
+  });
+
+  it("보수·기준·낙관 수입과 잔액을 각각 독립적으로 이월한다", () => {
+    const recurringTransactions = [
+      createIncomeRecurringTransaction([
+        900_000,
+        950_000,
+        1_000_000,
+      ]),
+      createRecurringTransaction({
+        description: "월세",
+        averageAmount: 700_000,
+        lastMonth: "2026-03",
+      }),
+      createRecurringTransaction({
+        description: "전기요금",
+        averageAmount: 82_333.33,
+        lastMonth: "2026-03",
+      }),
+    ];
+    const analyses = createScenarioForecastAnalyses(
+      recurringTransactions,
+      -497_000,
+    );
+    const spread = calculateScenarioSpread(
+      recurringTransactions[0].monthlyAmounts,
+    );
+
+    for (let index = 0; index < 3; index += 1) {
+      const conservative = analyses.conservative.forecasts[index];
+      const base = analyses.base.forecasts[index];
+      const optimistic = analyses.optimistic.forecasts[index];
+
+      expect(conservative.recurringIncome).toBeLessThan(
+        base.recurringIncome,
+      );
+      expect(base.recurringIncome).toBeLessThan(
+        optimistic.recurringIncome,
+      );
+      expect(conservative.recurringIncome).toBeCloseTo(
+        base.recurringIncome * (1 - spread),
+        6,
+      );
+      expect(optimistic.recurringIncome).toBeCloseTo(
+        base.recurringIncome * (1 + spread),
+        6,
+      );
+      expect(conservative.recurringExpense).toBe(
+        base.recurringExpense,
+      );
+      expect(optimistic.recurringExpense).toBe(base.recurringExpense);
+
+      if (index > 0) {
+        expect(conservative.startingBalance).toBeCloseTo(
+          analyses.conservative.forecasts[index - 1]
+            .expectedEndingBalance,
+          6,
+        );
+        expect(base.startingBalance).toBeCloseTo(
+          analyses.base.forecasts[index - 1].expectedEndingBalance,
+          6,
+        );
+        expect(optimistic.startingBalance).toBeCloseTo(
+          analyses.optimistic.forecasts[index - 1]
+            .expectedEndingBalance,
+          6,
+        );
+      }
+    }
+
+    expect(analyses.conservative.cashRisk).toMatchObject({
+      negativeMonthCount: 2,
+      lowestBalanceMonth: "2026-04",
+      recoveryMonth: "2026-06",
+    });
+    expect(analyses.base.cashRisk).toMatchObject({
+      negativeMonthCount: 1,
+      lowestBalanceMonth: "2026-04",
+      recoveryMonth: "2026-05",
+    });
+    expect(analyses.optimistic.cashRisk).toMatchObject({
+      negativeMonthCount: 1,
+      lowestBalanceMonth: "2026-04",
+      recoveryMonth: "2026-05",
+    });
+    expect(
+      analyses.conservative.cashRisk?.requiredCashBuffer,
+    ).toBeGreaterThan(analyses.base.cashRisk?.requiredCashBuffer ?? 0);
+    expect(
+      analyses.base.cashRisk?.requiredCashBuffer,
+    ).toBeGreaterThan(analyses.optimistic.cashRisk?.requiredCashBuffer ?? 0);
+  });
+
+  it("확정 예정 거래를 세 시나리오에 같은 금액으로 반영한다", () => {
+    const scheduledTransactions: ScheduledTransaction[] = [
+      {
+        id: "confirmed-income",
+        date: "2026-05-15",
+        description: "확정 입금",
+        type: "income",
+        amount: 500_000,
+      },
+      {
+        id: "confirmed-expense",
+        date: "2026-05-20",
+        description: "확정 출금",
+        type: "expense",
+        amount: 100_000,
+      },
+    ];
+    const analyses = createScenarioForecastAnalyses(
+      [
+        createIncomeRecurringTransaction([
+          900_000,
+          950_000,
+          1_000_000,
+        ]),
+        createRecurringTransaction({
+          averageAmount: 700_000,
+          lastMonth: "2026-03",
+        }),
+      ],
+      0,
+      scheduledTransactions,
+    );
+
+    for (const scenario of [
+      "conservative",
+      "base",
+      "optimistic",
+    ] as const) {
+      expect(analyses[scenario].forecasts[1]).toMatchObject({
+        scheduledIncome: 500_000,
+        scheduledExpense: 100_000,
+        recurringExpense: 700_000,
+      });
+    }
   });
 });
 
