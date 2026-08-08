@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 
 import ForecastSection from "./ForecastSection";
 import AnalysisReport from "./AnalysisReport";
+import ManualMappingPanel from "./ManualMappingPanel";
 
 import {
   mapColumns,
@@ -55,7 +56,10 @@ import {
 import type { ForecastScenario } from "../services/forecastScenario";
 import { DEFAULT_FORECAST_SCENARIO } from "../services/forecastPresentation";
 
-import type { ScheduledTransaction } from "../services/scheduledTransaction";
+import {
+  partitionScheduledTransactionsByForecastMonths,
+  type ScheduledTransaction,
+} from "../services/scheduledTransaction";
 import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
 import {
   analyzeDataQuality,
@@ -69,6 +73,20 @@ import {
 } from "../services/transactionSheetDetector";
 import { createActionGuide } from "../services/actionGuide";
 import { printAnalysisReport } from "../services/reportPresentation";
+import {
+  clearUserSession,
+  loadUserFileSession,
+  saveUserFileSession,
+} from "../services/userSessionStorage";
+import {
+  countValidManualTransactions,
+  convertManualMappingToColumnMappings,
+  createManualMappingPrefill,
+  getManualWorksheetPreview,
+  getManualWorksheetRows,
+  validateManualMapping,
+  type ManualTransactionMapping,
+} from "../services/manualMapping";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -100,6 +118,22 @@ interface AmountWarningCounts {
   directionConflictCount: number;
   directionOverrideCount: number;
   columnConflictCount: number;
+}
+
+type AnalysisMode = "automatic" | "manual";
+
+function getManualAmountStructure(
+  amountMode: ManualTransactionMapping["amountMode"],
+): SheetDetectionResult["amountStructure"] {
+  if (amountMode === "split") {
+    return "separate";
+  }
+
+  if (amountMode === "amount-direction") {
+    return "amountDirection";
+  }
+
+  return "signedAmount";
 }
 
 function formatOriginalAmountValues(
@@ -335,11 +369,20 @@ export function ReportPrintButton({
 }
 
 export default function UploadArea() {
+  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [sheetDetection, setSheetDetection] =
     useState<SheetDetectionResult | null>(null);
+  const [automaticSheetDetection, setAutomaticSheetDetection] =
+    useState<SheetDetectionResult | null>(null);
+  const [analysisMode, setAnalysisMode] =
+    useState<AnalysisMode | null>(null);
+  const [manualMapping, setManualMapping] =
+    useState<ManualTransactionMapping | null>(null);
+  const [manualMappingOpen, setManualMappingOpen] = useState(false);
+  const [manualMappingErrors, setManualMappingErrors] = useState<string[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
@@ -369,6 +412,27 @@ export default function UploadArea() {
   const [scheduledError, setScheduledError] = useState("");
   const [selectedScenario, setSelectedScenario] =
     useState<ForecastScenario>(DEFAULT_FORECAST_SCENARIO);
+  const [sessionStorageAvailable, setSessionStorageAvailable] =
+    useState(true);
+  const manualMappingSheetName = manualMapping?.sheetName;
+  const manualMappingHeaderRowIndex = manualMapping?.headerRowIndex;
+  const manualWorksheetPreview = useMemo(
+    () =>
+      workbook &&
+      manualMappingSheetName !== undefined &&
+      manualMappingHeaderRowIndex !== undefined
+        ? getManualWorksheetPreview(
+            workbook,
+            manualMappingSheetName,
+            manualMappingHeaderRowIndex,
+          )
+        : { columns: [], rows: [], headerRowLimit: 0 },
+    [
+      workbook,
+      manualMappingSheetName,
+      manualMappingHeaderRowIndex,
+    ],
+  );
 
   const recurringTransactions = useMemo(
     () => detectRecurringTransactions(transactions),
@@ -382,14 +446,38 @@ export default function UploadArea() {
     () => analyzeDataQuality(transactions),
     [transactions],
   );
+  const forecastMonths = useMemo(
+    () =>
+      createScenarioForecastAnalyses(
+        recurringTransactions,
+        latestBalance,
+      ).base.forecasts.map((forecast) => forecast.month),
+    [recurringTransactions, latestBalance],
+  );
+  const scheduledTransactionForecastScope = useMemo(
+    () =>
+      partitionScheduledTransactionsByForecastMonths(
+        scheduledTransactions,
+        forecastMonths,
+      ),
+    [forecastMonths, scheduledTransactions],
+  );
+  const applicableScheduledTransactions =
+    scheduledTransactionForecastScope.applicable;
+  const outOfPeriodScheduledTransactions =
+    scheduledTransactionForecastScope.outOfPeriod;
   const scenarioAnalyses = useMemo(
     () =>
       createScenarioForecastAnalyses(
         recurringTransactions,
         latestBalance,
-        scheduledTransactions,
+        applicableScheduledTransactions,
       ),
-    [recurringTransactions, latestBalance, scheduledTransactions],
+    [
+      recurringTransactions,
+      latestBalance,
+      applicableScheduledTransactions,
+    ],
   );
   const selectedAnalysis = scenarioAnalyses[selectedScenario];
   const { forecasts } = selectedAnalysis;
@@ -400,13 +488,13 @@ export default function UploadArea() {
         cashRisk: selectedAnalysis.cashRisk,
         categorySummaries,
         monthlyCategorySummaries,
-        scheduledTransactions,
+        scheduledTransactions: applicableScheduledTransactions,
       }),
     [
       selectedAnalysis,
       categorySummaries,
       monthlyCategorySummaries,
-      scheduledTransactions,
+      applicableScheduledTransactions,
     ],
   );
 
@@ -424,10 +512,16 @@ export default function UploadArea() {
   const [error, setError] = useState("");
 
   function resetFileInfo() {
+    setWorkbook(null);
     setFileName("");
     setFileSize("");
     setSheetNames([]);
     setSheetDetection(null);
+    setAutomaticSheetDetection(null);
+    setAnalysisMode(null);
+    setManualMapping(null);
+    setManualMappingOpen(false);
+    setManualMappingErrors([]);
     setColumnMappings([]);
     setTransactions([]);
     setSummary(null);
@@ -442,6 +536,7 @@ export default function UploadArea() {
     setScheduledAmount("");
     setScheduledError("");
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
+    setSessionStorageAvailable(true);
     setInvalidDateCount(0);
     setAmountWarningCounts({
       invalidAmountCount: 0,
@@ -450,6 +545,27 @@ export default function UploadArea() {
       directionOverrideCount: 0,
       columnConflictCount: 0,
     });
+  }
+
+  function saveCurrentFileSettings(
+    nextScenario: ForecastScenario,
+    nextScheduledTransactions: ScheduledTransaction[],
+  ) {
+    if (!fileName) {
+      return;
+    }
+
+    setSessionStorageAvailable(
+      saveUserFileSession(fileName, {
+        selectedScenario: nextScenario,
+        scheduledTransactions: nextScheduledTransactions,
+      }),
+    );
+  }
+
+  function handleScenarioChange(scenario: ForecastScenario) {
+    setSelectedScenario(scenario);
+    saveCurrentFileSettings(scenario, scheduledTransactions);
   }
 
   function handleScheduledTransactionSubmit(
@@ -495,6 +611,10 @@ export default function UploadArea() {
     ];
 
     setScheduledTransactions(nextScheduledTransactions);
+    saveCurrentFileSettings(
+      selectedScenario,
+      nextScheduledTransactions,
+    );
     setScheduledDate("");
     setScheduledDescription("");
     setScheduledType("expense");
@@ -507,7 +627,237 @@ export default function UploadArea() {
     );
 
     setScheduledTransactions(nextScheduledTransactions);
+    saveCurrentFileSettings(
+      selectedScenario,
+      nextScheduledTransactions,
+    );
     setScheduledError("");
+  }
+
+  function handleCurrentFileSettingsReset() {
+    const cleared = clearUserSession(fileName);
+
+    setScheduledTransactions([]);
+    setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
+    setScheduledError("");
+    setSessionStorageAvailable(cleared);
+  }
+
+  function createManualPrefillForLocation(
+    sourceWorkbook: XLSX.WorkBook,
+    sheetName: string,
+    headerRowIndex: number,
+  ): ManualTransactionMapping {
+    const preview = getManualWorksheetPreview(
+      sourceWorkbook,
+      sheetName,
+      headerRowIndex,
+    );
+    const automaticMappings = mapColumns(preview.columns, preview.rows);
+
+    return createManualMappingPrefill(
+      sheetName,
+      headerRowIndex,
+      automaticMappings,
+    );
+  }
+
+  function applyWorkbookAnalysis(
+    sourceWorkbook: XLSX.WorkBook,
+    selectedSheetName: string,
+    headerRowIndex: number,
+    mappings: ColumnMapping[],
+    mode: AnalysisMode,
+    automaticDetection: SheetDetectionResult | null = null,
+  ) {
+    const objectRows = getManualWorksheetRows(
+      sourceWorkbook,
+      selectedSheetName,
+      headerRowIndex,
+    );
+    const standardizedRows = standardizeTransactionRows(
+      objectRows,
+      mappings,
+    );
+    const date1904 =
+      sourceWorkbook.Workbook?.WBProps?.date1904 === true;
+    const parsedResult = parseTransactions(standardizedRows, {
+      date1904,
+    });
+    const validTransactionRowCount = countValidManualTransactions(
+      parsedResult.transactions,
+    );
+
+    if (validTransactionRowCount === 0) {
+      throw new Error(
+        "선택한 설정에서 유효한 거래를 찾지 못했습니다. 헤더 행과 거래일·금액 컬럼을 확인해주세요.",
+      );
+    }
+
+    const financialSummary = calculateFinancialSummary(
+      parsedResult.transactions,
+    );
+    const monthlyResults = aggregateMonthly(
+      parsedResult.transactions,
+    );
+    const categoryResults = aggregateExpensesByCategory(
+      parsedResult.transactions,
+    );
+    const monthlyCategoryResults =
+      aggregateMonthlyExpensesByCategory(parsedResult.transactions);
+    const generatedInsights = generateFinancialInsights(
+      monthlyResults,
+      categoryResults,
+      monthlyCategoryResults,
+    );
+    const activeDetection =
+      mode === "automatic" && automaticDetection
+        ? automaticDetection
+        : {
+            sheetName: selectedSheetName,
+            sheetIndex:
+              sourceWorkbook.SheetNames.indexOf(selectedSheetName),
+            headerRowIndex,
+            score: 0,
+            confidence: "high" as const,
+            reasons: ["사용자가 분석 시트와 컬럼을 직접 지정함"],
+            validTransactionRowCount,
+            sampledDataRowCount: objectRows.length,
+            coreColumnCount: mappings.filter(
+              (mapping) => mapping.standardName !== "unknown",
+            ).length,
+            amountStructure: getManualAmountStructure(
+              manualMapping?.amountMode ?? "split",
+            ),
+            ambiguous: false,
+          };
+
+    setSheetDetection(activeDetection);
+    setColumnMappings(mappings);
+    setTransactions(parsedResult.transactions);
+    setSummary(financialSummary);
+    setMonthlySummaries(monthlyResults);
+    setCategorySummaries(categoryResults);
+    setMonthlyCategorySummaries(monthlyCategoryResults);
+    setInsights(generatedInsights);
+    setAnalysisMode(mode);
+    setInvalidDateCount(parsedResult.invalidDateCount);
+    setAmountWarningCounts({
+      invalidAmountCount: parsedResult.invalidAmountCount,
+      unknownDirectionCount: parsedResult.unknownDirectionCount,
+      directionConflictCount: parsedResult.directionConflictCount,
+      directionOverrideCount: parsedResult.directionOverrideCount,
+      columnConflictCount: parsedResult.columnConflictCount,
+    });
+  }
+
+  function handleManualSheetChange(sheetName: string) {
+    if (!workbook) {
+      return;
+    }
+
+    setManualMapping(createManualPrefillForLocation(workbook, sheetName, 0));
+    setManualMappingErrors([]);
+  }
+
+  function handleManualHeaderRowChange(headerRowIndex: number) {
+    if (!workbook || !manualMapping) {
+      return;
+    }
+
+    setManualMapping(
+      createManualPrefillForLocation(
+        workbook,
+        manualMapping.sheetName,
+        headerRowIndex,
+      ),
+    );
+    setManualMappingErrors([]);
+  }
+
+  function handleManualAnalysis() {
+    if (!workbook || !manualMapping) {
+      return;
+    }
+
+    const validationErrors = validateManualMapping(manualMapping, {
+      sheetNames: workbook.SheetNames,
+      columns: manualWorksheetPreview.columns,
+      headerRowLimit: manualWorksheetPreview.headerRowLimit,
+    });
+
+    if (validationErrors.length > 0) {
+      setManualMappingErrors(validationErrors);
+      return;
+    }
+
+    const mappings = convertManualMappingToColumnMappings(
+      manualMapping,
+      manualWorksheetPreview.columns,
+    );
+
+    try {
+      applyWorkbookAnalysis(
+        workbook,
+        manualMapping.sheetName,
+        manualMapping.headerRowIndex,
+        mappings,
+        "manual",
+      );
+      setManualMappingErrors([]);
+      setError("");
+    } catch (caughtError) {
+      setManualMappingErrors([
+        caughtError instanceof Error
+          ? caughtError.message
+          : "수동 설정으로 분석하지 못했습니다.",
+      ]);
+    }
+  }
+
+  function handleReturnToAutomatic() {
+    if (!workbook || !automaticSheetDetection) {
+      return;
+    }
+
+    const preview = getManualWorksheetPreview(
+      workbook,
+      automaticSheetDetection.sheetName,
+      automaticSheetDetection.headerRowIndex,
+    );
+    const rows = getManualWorksheetRows(
+      workbook,
+      automaticSheetDetection.sheetName,
+      automaticSheetDetection.headerRowIndex,
+    );
+    const mappings = mapColumns(preview.columns, rows);
+
+    try {
+      applyWorkbookAnalysis(
+        workbook,
+        automaticSheetDetection.sheetName,
+        automaticSheetDetection.headerRowIndex,
+        mappings,
+        "automatic",
+        automaticSheetDetection,
+      );
+      setManualMapping(
+        createManualMappingPrefill(
+          automaticSheetDetection.sheetName,
+          automaticSheetDetection.headerRowIndex,
+          mappings,
+        ),
+      );
+      setManualMappingErrors([]);
+      setManualMappingOpen(false);
+      setError("");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "자동 인식 결과로 분석하지 못했습니다.",
+      );
+    }
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -533,110 +883,89 @@ export default function UploadArea() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const uploadedWorkbook = XLSX.read(arrayBuffer, { type: "array" });
       const date1904 =
-        workbook.Workbook?.WBProps?.date1904 === true;
+        uploadedWorkbook.Workbook?.WBProps?.date1904 === true;
 
-      if (workbook.SheetNames.length === 0) {
+      if (uploadedWorkbook.SheetNames.length === 0) {
         throw new Error("엑셀 시트를 찾을 수 없습니다.");
       }
 
+      const restoredFileSession = loadUserFileSession(file.name);
+      const savedRestoredSession = restoredFileSession.storageAvailable
+        ? saveUserFileSession(file.name, restoredFileSession.session)
+        : false;
+
+      setWorkbook(uploadedWorkbook);
+      setFileName(file.name);
+      setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
+      setSheetNames(uploadedWorkbook.SheetNames);
+      setScheduledTransactions(
+        restoredFileSession.session.scheduledTransactions,
+      );
+      setSelectedScenario(restoredFileSession.session.selectedScenario);
+      setSessionStorageAvailable(savedRestoredSession);
+
       const sheetCandidates: TransactionSheetCandidate[] =
-        workbook.SheetNames.map((sheetName, sheetIndex) => ({
+        uploadedWorkbook.SheetNames.map((sheetName, sheetIndex) => ({
           sheetName,
           sheetIndex,
-          rows: getWorksheetDetectionRows(workbook.Sheets[sheetName]),
+          rows: getWorksheetDetectionRows(
+            uploadedWorkbook.Sheets[sheetName],
+          ),
         }));
       const detectedSheet = detectTransactionSheet(sheetCandidates, {
         date1904,
       });
 
       if (!detectedSheet) {
+        const firstSheetName = uploadedWorkbook.SheetNames[0];
+
+        setAutomaticSheetDetection(null);
+        setManualMapping(
+          createManualPrefillForLocation(
+            uploadedWorkbook,
+            firstSheetName,
+            0,
+          ),
+        );
         setError(
-          "거래내역으로 판단할 수 있는 시트를 찾지 못했습니다.",
+          "거래내역으로 판단할 수 있는 시트를 자동으로 찾지 못했습니다. 직접 시트와 컬럼을 설정해 분석할 수 있습니다.",
         );
-        event.target.value = "";
         return;
       }
 
-      const selectedSheet = workbook.Sheets[detectedSheet.sheetName];
-      const detectionRows = sheetCandidates[detectedSheet.sheetIndex]?.rows;
+      const automaticPreview = getManualWorksheetPreview(
+        uploadedWorkbook,
+        detectedSheet.sheetName,
+        detectedSheet.headerRowIndex,
+      );
+      const automaticRows = getManualWorksheetRows(
+        uploadedWorkbook,
+        detectedSheet.sheetName,
+        detectedSheet.headerRowIndex,
+      );
+      const mappings = mapColumns(
+        automaticPreview.columns,
+        automaticRows,
+      );
 
-      if (!selectedSheet || !detectionRows) {
-        throw new Error("자동 선택된 거래 시트를 읽을 수 없습니다.");
-      }
-
-      const headerRow = detectionRows[detectedSheet.headerRowIndex] ?? [];
-
-      const columnNames = headerRow
-        .map((cell) => String(cell).trim())
-        .filter((cell) => cell !== "");
-
-      if (columnNames.length === 0) {
-        setError("자동 선택된 거래 시트의 컬럼명을 찾지 못했습니다.");
-        event.target.value = "";
-        return;
-      }
-
-      const objectRows =
-        XLSX.utils.sheet_to_json<Record<string, unknown>>(selectedSheet, {
-          defval: "",
-          range: detectedSheet.headerRowIndex,
-        });
-
-      const mappings = mapColumns(columnNames, objectRows);
-
-      const standardizedRows = standardizeTransactionRows(
-        objectRows,
+      setAutomaticSheetDetection(detectedSheet);
+      setManualMapping(
+        createManualMappingPrefill(
+          detectedSheet.sheetName,
+          detectedSheet.headerRowIndex,
+          mappings,
+        ),
+      );
+      applyWorkbookAnalysis(
+        uploadedWorkbook,
+        detectedSheet.sheetName,
+        detectedSheet.headerRowIndex,
         mappings,
+        "automatic",
+        detectedSheet,
       );
-
-      const parsedResult = parseTransactions(standardizedRows, {
-        date1904,
-      });
-
-      const financialSummary = calculateFinancialSummary(
-        parsedResult.transactions,
-      );
-
-      const monthlyResults = aggregateMonthly(
-        parsedResult.transactions,
-      );
-
-      const categoryResults = aggregateExpensesByCategory(
-        parsedResult.transactions,
-      );
-
-      const monthlyCategoryResults =
-        aggregateMonthlyExpensesByCategory(
-          parsedResult.transactions,
-        );
-
-      const generatedInsights = generateFinancialInsights(
-        monthlyResults,
-        categoryResults,
-        monthlyCategoryResults,
-      );
-
-      setFileName(file.name);
-      setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
-      setSheetNames(workbook.SheetNames);
-      setSheetDetection(detectedSheet);
-      setColumnMappings(mappings);
-      setTransactions(parsedResult.transactions);
-      setSummary(financialSummary);
-      setMonthlySummaries(monthlyResults);
-      setCategorySummaries(categoryResults);
-      setMonthlyCategorySummaries(monthlyCategoryResults);
-      setInsights(generatedInsights);
-      setInvalidDateCount(parsedResult.invalidDateCount);
-      setAmountWarningCounts({
-        invalidAmountCount: parsedResult.invalidAmountCount,
-        unknownDirectionCount: parsedResult.unknownDirectionCount,
-        directionConflictCount: parsedResult.directionConflictCount,
-        directionOverrideCount: parsedResult.directionOverrideCount,
-        columnConflictCount: parsedResult.columnConflictCount,
-      });
     } catch (caughtError) {
       console.error(caughtError);
       resetFileInfo();
@@ -730,7 +1059,7 @@ export default function UploadArea() {
 
       {fileName && (
         <div className="mt-5 rounded-lg bg-slate-50 p-4">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-6">
             <div>
               <dt className="text-slate-500">파일명</dt>
               <dd className="mt-1 font-medium text-slate-900">
@@ -752,27 +1081,43 @@ export default function UploadArea() {
               </dd>
             </div>
 
+            {analysisMode && (
+              <div>
+                <dt className="text-slate-500">분석 방식</dt>
+                <dd className="mt-1 font-medium text-slate-900">
+                  {analysisMode === "automatic" ? "자동" : "수동"}
+                </dd>
+              </div>
+            )}
+
             {sheetDetection && (
               <>
                 <div>
                   <dt className="text-slate-500">분석 시트</dt>
                   <dd className="mt-1 font-medium text-slate-900">
                     {sheetDetection.sheetName}
+                    {analysisMode === "manual" && (
+                      <span className="ml-2 text-xs text-slate-500">
+                        헤더 {sheetDetection.headerRowIndex + 1}행
+                      </span>
+                    )}
                   </dd>
                 </div>
 
-                <div>
-                  <dt className="text-slate-500">자동 선택 신뢰도</dt>
-                  <dd className="mt-1">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getConfidenceStyle(
-                        sheetDetection.confidence,
-                      )}`}
-                    >
-                      {getConfidenceLabel(sheetDetection.confidence)}
-                    </span>
-                  </dd>
-                </div>
+                {analysisMode === "automatic" && (
+                  <div>
+                    <dt className="text-slate-500">자동 선택 신뢰도</dt>
+                    <dd className="mt-1">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getConfidenceStyle(
+                          sheetDetection.confidence,
+                        )}`}
+                      >
+                        {getConfidenceLabel(sheetDetection.confidence)}
+                      </span>
+                    </dd>
+                  </div>
+                )}
               </>
             )}
           </dl>
@@ -782,7 +1127,64 @@ export default function UploadArea() {
               {sheetDetection.reasons.join(" · ")}
             </p>
           )}
+
+          {workbook && manualMapping && (
+            <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setManualMappingOpen((isOpen) => !isOpen);
+                  setManualMappingErrors([]);
+                }}
+                className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
+                  automaticSheetDetection === null
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : automaticSheetDetection.confidence !== "high"
+                      ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {manualMappingOpen
+                  ? "직접 설정 닫기"
+                  : automaticSheetDetection
+                    ? automaticSheetDetection.confidence === "high"
+                      ? "자동 인식 수정"
+                      : "자동 인식 결과 직접 확인"
+                    : "직접 설정해서 분석"}
+              </button>
+
+              {analysisMode === "manual" && automaticSheetDetection && (
+                <button
+                  type="button"
+                  onClick={handleReturnToAutomatic}
+                  className="rounded-md border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                >
+                  자동 인식으로 되돌리기
+                </button>
+              )}
+            </div>
+          )}
         </div>
+      )}
+
+      {manualMappingOpen && workbook && manualMapping && (
+        <ManualMappingPanel
+          sheetNames={workbook.SheetNames}
+          mapping={manualMapping}
+          preview={manualWorksheetPreview}
+          errors={manualMappingErrors}
+          canReturnToAutomatic={
+            analysisMode === "manual" && automaticSheetDetection !== null
+          }
+          onSheetChange={handleManualSheetChange}
+          onHeaderRowChange={handleManualHeaderRowChange}
+          onMappingChange={(mapping) => {
+            setManualMapping(mapping);
+            setManualMappingErrors([]);
+          }}
+          onAnalyze={handleManualAnalysis}
+          onReturnToAutomatic={handleReturnToAutomatic}
+        />
       )}
 
       {summary && sheetDetection && (
@@ -996,6 +1398,32 @@ export default function UploadArea() {
               향후 3개월 안에 확정된 입금이나 출금을 추가하면 Forecast와
               현금 위험도가 바로 다시 계산됩니다.
             </p>
+
+            <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+              <p className="leading-6">
+                예정거래와 시나리오 선택은 파일별로 이 브라우저에 자동
+                저장됩니다. 원본 Excel 거래내역과 분석 결과는 브라우저
+                저장소에 저장하지 않습니다.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleCurrentFileSettingsReset}
+                className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-800 transition hover:bg-blue-100"
+              >
+                이 파일 설정 초기화
+              </button>
+            </div>
+
+            {!sessionStorageAvailable && (
+              <p
+                className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+                role="status"
+              >
+                브라우저 저장소를 사용할 수 없어 설정은 현재 화면에서만
+                유지됩니다. 재무 분석 기능은 계속 사용할 수 있습니다.
+              </p>
+            )}
           </div>
 
           <form
@@ -1070,6 +1498,17 @@ export default function UploadArea() {
             </button>
           </form>
 
+          {outOfPeriodScheduledTransactions.length > 0 && (
+            <p
+              className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+              role="status"
+            >
+              저장된 예정거래 중 현재 Forecast 기간 밖인 거래가{" "}
+              {outOfPeriodScheduledTransactions.length}건 있습니다. 목록에는
+              유지하지만 이번 Forecast 계산에서는 제외했습니다.
+            </p>
+          )}
+
           <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
             {scheduledTransactions.length === 0 ? (
               <p className="bg-white px-4 py-5 text-sm text-slate-500">
@@ -1131,7 +1570,7 @@ export default function UploadArea() {
       <ForecastSection
         analysis={selectedAnalysis}
         selectedScenario={selectedScenario}
-        onScenarioChange={setSelectedScenario}
+        onScenarioChange={handleScenarioChange}
         actionGuideItems={actionGuideItems}
       />
 
@@ -1317,7 +1756,9 @@ export default function UploadArea() {
       {columnMappings.length > 0 && (
         <div className="mt-6">
           <h3 className="mb-3 font-semibold text-slate-900">
-            컬럼 자동 인식 결과
+            {analysisMode === "manual"
+              ? "사용자 지정 컬럼 매핑"
+              : "컬럼 자동 인식 결과"}
           </h3>
 
           <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -1333,7 +1774,7 @@ export default function UploadArea() {
                   </th>
 
                   <th className="px-4 py-3 text-left">
-                    신뢰도
+                    {analysisMode === "manual" ? "설정" : "신뢰도"}
                   </th>
                 </tr>
               </thead>
@@ -1353,13 +1794,19 @@ export default function UploadArea() {
                     </td>
 
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getConfidenceStyle(
-                          mapping.confidence,
-                        )}`}
-                      >
-                        {getConfidenceLabel(mapping.confidence)}
-                      </span>
+                      {analysisMode === "manual" ? (
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                          사용자 지정
+                        </span>
+                      ) : (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${getConfidenceStyle(
+                            mapping.confidence,
+                          )}`}
+                        >
+                          {getConfidenceLabel(mapping.confidence)}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
