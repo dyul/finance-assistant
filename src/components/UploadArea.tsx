@@ -14,6 +14,7 @@ import {
   type AnalysisMode,
 } from "./fileUploadPresentation";
 import ScheduledTransactionSection from "./ScheduledTransactionSection";
+import OnboardingSection from "./OnboardingSection";
 
 import {
   mapColumns,
@@ -907,6 +908,7 @@ export default function UploadArea() {
 
   return (
     <>
+      <OnboardingSection visible={!fileName && !isProcessingFile} />
       <section className="screen-only rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <FileUploadSection
         fileName={fileName}

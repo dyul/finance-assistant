@@ -41,9 +41,12 @@ export default function FileUploadSection({
   onReturnToAutomatic,
 }: FileUploadSectionProps) {
   return (
-    <>
+    <section id="excel-upload" aria-labelledby="excel-upload-heading">
       <div className="mb-5">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2
+          id="excel-upload-heading"
+          className="text-lg font-semibold text-slate-900"
+        >
           엑셀 업로드
         </h2>
         <p className="mt-1 text-sm text-slate-500">
@@ -80,6 +83,20 @@ export default function FileUploadSection({
           Excel 분석 모듈을 불러오고 파일을 처리하는 중입니다.
         </p>
       )}
+
+      <div
+        className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600"
+        role="note"
+      >
+        <p>
+          업로드한 Excel은 현재 브라우저에서 분석되며, 원본 거래내역을
+          브라우저 저장소에 저장하지 않습니다.
+        </p>
+        <p className="mt-1">
+          예정거래와 선택 시나리오만 파일명 기준으로 이 브라우저에 저장될
+          수 있습니다.
+        </p>
+      </div>
 
       {error && (
         <p
@@ -194,6 +211,6 @@ export default function FileUploadSection({
           )}
         </div>
       )}
-    </>
+    </section>
   );
 }
