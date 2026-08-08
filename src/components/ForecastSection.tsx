@@ -5,13 +5,9 @@ import {
 } from "../services/forecastPresentation";
 import type { ForecastScenario } from "../services/forecastScenario";
 import {
-  createActionGuide,
   type ActionGuideItem,
   type ActionPriority,
 } from "../services/actionGuide";
-import type { CategorySummary } from "../services/categoryAggregator";
-import type { MonthlyCategorySummary } from "../services/monthlyCategoryAggregator";
-import type { ScheduledTransaction } from "../services/scheduledTransaction";
 
 const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
   "conservative",
@@ -88,9 +84,7 @@ export function ForecastScenarioTabs({
 
 interface ForecastSectionProps extends ForecastScenarioTabsProps {
   analysis: ForecastAnalysis;
-  categorySummaries: CategorySummary[];
-  monthlyCategorySummaries: MonthlyCategorySummary[];
-  scheduledTransactions: ScheduledTransaction[];
+  actionGuideItems: ActionGuideItem[];
 }
 
 function formatCurrency(value: number): string {
@@ -231,9 +225,7 @@ export default function ForecastSection({
   analysis,
   selectedScenario,
   onScenarioChange,
-  categorySummaries,
-  monthlyCategorySummaries,
-  scheduledTransactions,
+  actionGuideItems,
 }: ForecastSectionProps) {
   const { forecasts, cashRisk } = analysis;
 
@@ -244,13 +236,6 @@ export default function ForecastSection({
   const summary = createForecastSummary(forecasts, cashRisk);
   const scenarioContent = FORECAST_SCENARIO_CONTENT[selectedScenario];
   const riskStyles = cashRisk ? getRiskStyles(cashRisk.level) : null;
-  const actionGuideItems = createActionGuide({
-    forecasts,
-    cashRisk,
-    categorySummaries,
-    monthlyCategorySummaries,
-    scheduledTransactions,
-  });
 
   return (
     <>

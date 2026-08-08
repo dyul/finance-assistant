@@ -21,6 +21,7 @@ import {
 import type { ForecastScenario } from "../services/forecastScenario";
 import type { RecurringTransaction } from "../services/recurringTransactionDetector";
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
+import { createActionGuide } from "../services/actionGuide";
 
 type ScenarioButton = ReactElement<{
   children?: ReactNode;
@@ -112,14 +113,20 @@ function renderScenario(
   scenario: ForecastScenario,
   scheduledTransactions: ScheduledTransaction[] = [],
 ): string {
+  const actionGuideItems = createActionGuide({
+    forecasts: analyses[scenario].forecasts,
+    cashRisk: analyses[scenario].cashRisk,
+    categorySummaries: [],
+    monthlyCategorySummaries: [],
+    scheduledTransactions,
+  });
+
   return renderToStaticMarkup(
     <ForecastSection
       analysis={analyses[scenario]}
       selectedScenario={scenario}
       onScenarioChange={() => undefined}
-      categorySummaries={[]}
-      monthlyCategorySummaries={[]}
-      scheduledTransactions={scheduledTransactions}
+      actionGuideItems={actionGuideItems}
     />,
   );
 }

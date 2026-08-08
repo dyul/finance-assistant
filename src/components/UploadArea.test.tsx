@@ -1,14 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as XLSX from "xlsx";
 
 import {
   DataQualitySummary,
   InvalidAmountWarning,
   InvalidDateWarning,
+  ReportPrintButton,
   TransactionAmountCells,
   TransactionDateValue,
 } from "./UploadArea";
+import { printAnalysisReport } from "../services/reportPresentation";
 import {
   createForecastAnalysis,
   createScenarioForecastAnalyses,
@@ -20,6 +22,25 @@ import { parseTransactions } from "../services/transactionParser";
 import { standardizeTransactionRows } from "../services/transactionRowStandardizer";
 
 describe("UploadArea 날짜 오류 안내", () => {
+  it("분석 결과 유무에 따라 리포트 버튼을 표시한다", () => {
+    expect(
+      renderToStaticMarkup(<ReportPrintButton visible={false} />),
+    ).toBe("");
+    expect(
+      renderToStaticMarkup(<ReportPrintButton visible />),
+    ).toContain("리포트 인쇄 / PDF 저장");
+  });
+
+  it("리포트 인쇄 시 window.print를 호출한다", () => {
+    const print = vi.fn();
+    vi.stubGlobal("window", { print });
+
+    printAnalysisReport();
+
+    expect(print).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
   it("날짜 오류 건수와 분석 제외 안내를 표시한다", () => {
     const markup = renderToStaticMarkup(
       <InvalidDateWarning count={2} />,

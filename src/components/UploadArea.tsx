@@ -7,6 +7,7 @@ import {
 import * as XLSX from "xlsx";
 
 import ForecastSection from "./ForecastSection";
+import AnalysisReport from "./AnalysisReport";
 
 import {
   mapColumns,
@@ -66,6 +67,8 @@ import {
   type SheetDetectionResult,
   type TransactionSheetCandidate,
 } from "../services/transactionSheetDetector";
+import { createActionGuide } from "../services/actionGuide";
+import { printAnalysisReport } from "../services/reportPresentation";
 
 export function InvalidDateWarning({ count }: { count: number }) {
   if (count <= 0) {
@@ -309,6 +312,28 @@ export function DataQualitySummary({
   );
 }
 
+export function ReportPrintButton({
+  visible,
+  onPrint = printAnalysisReport,
+}: {
+  visible: boolean;
+  onPrint?: () => void;
+}) {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onPrint}
+      className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
+    >
+      리포트 인쇄 / PDF 저장
+    </button>
+  );
+}
+
 export default function UploadArea() {
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -368,6 +393,22 @@ export default function UploadArea() {
   );
   const selectedAnalysis = scenarioAnalyses[selectedScenario];
   const { forecasts } = selectedAnalysis;
+  const actionGuideItems = useMemo(
+    () =>
+      createActionGuide({
+        forecasts: selectedAnalysis.forecasts,
+        cashRisk: selectedAnalysis.cashRisk,
+        categorySummaries,
+        monthlyCategorySummaries,
+        scheduledTransactions,
+      }),
+    [
+      selectedAnalysis,
+      categorySummaries,
+      monthlyCategorySummaries,
+      scheduledTransactions,
+    ],
+  );
 
   const [invalidDateCount, setInvalidDateCount] = useState(0);
 
@@ -652,7 +693,8 @@ export default function UploadArea() {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <>
+      <section className="screen-only rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-5">
         <h2 className="text-lg font-semibold text-slate-900">
           엑셀 업로드
@@ -740,6 +782,12 @@ export default function UploadArea() {
               {sheetDetection.reasons.join(" · ")}
             </p>
           )}
+        </div>
+      )}
+
+      {summary && sheetDetection && (
+        <div className="mt-5 flex justify-end">
+          <ReportPrintButton visible />
         </div>
       )}
 
@@ -1084,9 +1132,7 @@ export default function UploadArea() {
         analysis={selectedAnalysis}
         selectedScenario={selectedScenario}
         onScenarioChange={setSelectedScenario}
-        categorySummaries={categorySummaries}
-        monthlyCategorySummaries={monthlyCategorySummaries}
-        scheduledTransactions={scheduledTransactions}
+        actionGuideItems={actionGuideItems}
       />
 
       {categorySummaries.length > 0 && (
@@ -1322,6 +1368,23 @@ export default function UploadArea() {
           </div>
         </div>
       )}
-    </section>
+      </section>
+
+      {summary && sheetDetection && (
+        <AnalysisReport
+          fileName={fileName}
+          sheetName={sheetDetection.sheetName}
+          generatedAt={new Date()}
+          summary={summary}
+          latestBalance={latestBalance}
+          dataQuality={dataQualitySummary}
+          monthlySummaries={monthlySummaries}
+          analysis={selectedAnalysis}
+          selectedScenario={selectedScenario}
+          actionGuideItems={actionGuideItems}
+          categorySummaries={categorySummaries}
+        />
+      )}
+    </>
   );
 }

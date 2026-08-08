@@ -1,6 +1,6 @@
 export default function Header() {
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="screen-only border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">
