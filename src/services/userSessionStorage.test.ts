@@ -258,12 +258,18 @@ describe("사용자 Forecast 설정 저장", () => {
       transactions: Array<{ description: string }>;
       forecasts: Array<{ expectedEndingBalance: number }>;
       manualMapping: { sheetName: string; dateColumn: string };
+      financialSummary: { totalIncome: number };
+      cashRisk: { requiredCashBuffer: number };
+      actionGuide: Array<{ action: string }>;
     } = {
       selectedScenario: "base",
       scheduledTransactions: [unsafeScheduledTransaction],
       transactions: [{ description: "원본 거래 비공개" }],
       forecasts: [{ expectedEndingBalance: 123_456 }],
       manualMapping: { sheetName: "거래내역", dateColumn: "거래일" },
+      financialSummary: { totalIncome: 9_999_999 },
+      cashRisk: { requiredCashBuffer: 777_777 },
+      actionGuide: [{ action: "저장하면 안 되는 추천 행동" }],
     };
 
     saveUserSession(
@@ -284,6 +290,12 @@ describe("사용자 Forecast 설정 저장", () => {
     expect(payload).not.toContain("originalExcelRow");
     expect(payload).not.toContain("저장하면 안 되는 원본 값");
     expect(payload).not.toContain("manualMapping");
+    expect(payload).not.toContain("financialSummary");
+    expect(payload).not.toContain("totalIncome");
+    expect(payload).not.toContain("cashRisk");
+    expect(payload).not.toContain("requiredCashBuffer");
+    expect(payload).not.toContain("actionGuide");
+    expect(payload).not.toContain("저장하면 안 되는 추천 행동");
     expect(payload).toContain("scheduledTransactions");
     expect(payload).toContain("거래처 입금");
   });

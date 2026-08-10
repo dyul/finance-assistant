@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
 } from "react";
@@ -102,6 +103,7 @@ import {
   createPartialAnalysisIssues,
   type AnalysisIssue,
 } from "../services/analysisIssuePresentation";
+import { createLatestRequestGate } from "../services/latestRequestGate";
 import {
   formatCurrency,
   formatMonth,
@@ -437,6 +439,7 @@ export default function UploadArea() {
   const [blockingIssue, setBlockingIssue] =
     useState<AnalysisIssue | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const fileRequestGateRef = useRef(createLatestRequestGate());
   const partialAnalysisIssues = useMemo(
     () =>
       createPartialAnalysisIssues(
@@ -794,6 +797,11 @@ export default function UploadArea() {
       return;
     }
 
+    const input = event.currentTarget;
+    const requestId = fileRequestGateRef.current.begin();
+    const isLatestRequest = () =>
+      fileRequestGateRef.current.isLatest(requestId);
+
     setBlockingIssue(null);
     resetFileInfo();
 
@@ -804,7 +812,8 @@ export default function UploadArea() {
 
     if (!allowedExtensions.includes(extension)) {
       setBlockingIssue(createBlockingAnalysisIssue("unsupportedFile"));
-      event.target.value = "";
+      setIsProcessingFile(false);
+      input.value = "";
       return;
     }
 
@@ -812,7 +821,16 @@ export default function UploadArea() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+
+      if (!isLatestRequest()) {
+        return;
+      }
+
       const uploadedWorkbook = await loadExcelWorkbook(arrayBuffer);
+
+      if (!isLatestRequest()) {
+        return;
+      }
 
       if (uploadedWorkbook.sheetNames.length === 0) {
         throw new Error("workbook-without-sheets");
@@ -885,6 +903,10 @@ export default function UploadArea() {
       );
       setBlockingIssue(null);
     } catch (caughtError) {
+      if (!isLatestRequest()) {
+        return;
+      }
+
       if (caughtError instanceof NoValidTransactionsError) {
         clearAnalysisResults();
         setBlockingIssue(
@@ -898,8 +920,10 @@ export default function UploadArea() {
         createBlockingAnalysisIssue("workbookReadFailed"),
       );
     } finally {
-      setIsProcessingFile(false);
-      event.target.value = "";
+      if (isLatestRequest()) {
+        setIsProcessingFile(false);
+        input.value = "";
+      }
     }
   }
 
