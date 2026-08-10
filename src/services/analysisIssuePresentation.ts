@@ -1,4 +1,5 @@
 import type { DataQualitySummary } from "./dataQualityAnalyzer";
+import { MAX_EXCEL_FILE_SIZE_LABEL } from "./excelUploadValidation";
 
 export type AnalysisIssueSeverity = "blocking" | "warning" | "info";
 
@@ -14,6 +15,7 @@ export interface AnalysisIssue {
 
 export type BlockingAnalysisIssueKind =
   | "unsupportedFile"
+  | "fileTooLarge"
   | "workbookReadFailed"
   | "transactionSheetNotFound"
   | "noValidTransactions";
@@ -37,6 +39,19 @@ export function createBlockingAnalysisIssue(
       description: "선택한 파일은 현재 Excel 파일로 확인되지 않습니다.",
       impact: "파일을 읽지 않았으며 재무 요약과 향후 전망을 계산하지 않았습니다.",
       action: ".xlsx 또는 .xls 파일을 선택해주세요.",
+    };
+  }
+
+  if (kind === "fileTooLarge") {
+    return {
+      id: kind,
+      severity: "blocking",
+      title: "파일 크기가 너무 큽니다.",
+      description: `현재 브라우저 분석은 ${MAX_EXCEL_FILE_SIZE_LABEL} 이하 Excel 파일을 지원합니다.`,
+      impact:
+        "브라우저 메모리 과부하를 막기 위해 파일을 읽지 않았으며 재무 분석을 시작하지 않았습니다.",
+      action:
+        "기간을 나누거나 불필요한 시트를 제거해 파일 크기를 줄인 뒤 다시 업로드해주세요.",
     };
   }
 

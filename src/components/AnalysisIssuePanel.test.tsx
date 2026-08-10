@@ -54,6 +54,19 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).not.toContain("0원");
   });
 
+  it("10MB를 초과한 Excel을 분석 전에 차단하고 복구 방법을 안내한다", () => {
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel
+        issues={[createBlockingAnalysisIssue("fileTooLarge")]}
+      />,
+    );
+
+    expect(markup).toContain("파일 크기가 너무 큽니다");
+    expect(markup).toContain("10MB 이하");
+    expect(markup).toContain("파일을 읽지 않았으며");
+    expect(markup).toContain("기간을 나누거나 불필요한 시트를 제거");
+  });
+
   it("금액 오류는 정상 거래 계산을 유지하는 부분 분석 영향을 설명한다", () => {
     const issues = createPartialAnalysisIssues(
       {

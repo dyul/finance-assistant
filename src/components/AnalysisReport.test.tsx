@@ -255,4 +255,50 @@ describe("AnalysisReport", () => {
     expect(markup).toContain("일부 거래가 날짜 또는 금액 기반 분석에서 제외");
     expect(analyses.base.forecasts).toEqual(originalForecasts);
   });
+
+  it("사용자 파일명과 시트명을 HTML이 아닌 안전한 텍스트로 렌더링한다", () => {
+    const analyses = createAnalyses();
+    const analysis = analyses.base;
+    const markup = renderToStaticMarkup(
+      <AnalysisReport
+        fileName={'<img src=x onerror="alert(1)">.xlsx'}
+        sheetName={'<script>alert("sheet")</script>'}
+        generatedAt={new Date(2026, 7, 8)}
+        summary={{
+          totalIncome: 0,
+          totalExpense: 0,
+          netCashFlow: 0,
+          transactionCount: 0,
+          validAmountTransactionCount: 0,
+          averageTransactionAmount: 0,
+          largestIncome: 0,
+          largestExpense: 0,
+        }}
+        latestBalance={null}
+        dataQuality={{
+          totalTransactionCount: 0,
+          amountIncludedCount: 0,
+          dateAnalysisIncludedCount: 0,
+          validDateCount: 0,
+          invalidAmountCount: 0,
+          invalidDateCount: 0,
+          directionIssueCount: 0,
+        }}
+        monthlySummaries={[]}
+        analysis={analysis}
+        selectedScenario="base"
+        actionGuideItems={[]}
+        categorySummaries={[]}
+      />,
+    );
+
+    expect(markup).toContain(
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;.xlsx',
+    );
+    expect(markup).toContain(
+      '&lt;script&gt;alert(&quot;sheet&quot;)&lt;/script&gt;',
+    );
+    expect(markup).not.toContain("<img src=x");
+    expect(markup).not.toContain("<script>alert");
+  });
 });

@@ -96,6 +96,7 @@ import {
   type ManualTransactionMapping,
 } from "../services/manualMapping";
 import { loadExcelWorkbook } from "../services/excelWorkbookLoader";
+import { validateExcelUpload } from "../services/excelUploadValidation";
 import type { ExcelWorkbook } from "../services/excelWorkbook";
 import {
   createAnalysisLimitationIssues,
@@ -805,13 +806,10 @@ export default function UploadArea() {
     setBlockingIssue(null);
     resetFileInfo();
 
-    const allowedExtensions = [".xlsx", ".xls"];
-    const dotIndex = file.name.lastIndexOf(".");
-    const extension =
-      dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : "";
+    const validationIssue = validateExcelUpload(file);
 
-    if (!allowedExtensions.includes(extension)) {
-      setBlockingIssue(createBlockingAnalysisIssue("unsupportedFile"));
+    if (validationIssue) {
+      setBlockingIssue(createBlockingAnalysisIssue(validationIssue));
       setIsProcessingFile(false);
       input.value = "";
       return;

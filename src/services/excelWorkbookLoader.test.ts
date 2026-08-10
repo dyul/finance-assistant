@@ -39,4 +39,22 @@ describe("Excel workbook 지연 로더", () => {
       });
     },
   );
+
+  it("수식 셀을 실행하지 않고 통합 문서에 저장된 결과값으로 읽는다", async () => {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ["거래일", "적요", "입금액", "출금액"],
+      ["2026-01-01", "상품판매", 0, 0],
+    ]);
+
+    worksheet.C2 = { t: "n", f: "450000+50000", v: 500000 };
+    XLSX.utils.book_append_sheet(workbook, worksheet, "거래내역");
+
+    const uploadedWorkbook = await loadExcelWorkbook(
+      XLSX.write(workbook, { bookType: "xlsx", type: "array" }),
+    );
+    const rows = uploadedWorkbook.getRows("거래내역", 0);
+
+    expect(rows[0]?.입금액).toBe(500000);
+  });
 });

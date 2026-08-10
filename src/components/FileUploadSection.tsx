@@ -3,6 +3,7 @@ import type { ChangeEvent } from "react";
 import type {
   SheetDetectionResult,
 } from "../services/transactionSheetDetector";
+import { MAX_EXCEL_FILE_SIZE_LABEL } from "../services/excelUploadValidation";
 import {
   getConfidenceLabel,
   getConfidenceStyle,
@@ -65,7 +66,7 @@ export default function FileUploadSection({
             : "엑셀 파일 선택"}
         </span>
         <span className="mt-1 text-sm text-slate-500">
-          .xlsx 또는 .xls 파일
+          .xlsx 또는 .xls 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL}
         </span>
         <input
           type="file"
