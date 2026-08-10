@@ -37,7 +37,7 @@ export interface ManualMappingValidationContext {
   headerRowLimit: number;
 }
 
-const MANUAL_HEADER_LIMIT = 30;
+export const MAX_MANUAL_HEADER_ROWS = 100;
 
 const DISPLAY_NAMES: Record<StandardColumn, string> = {
   date: "거래일",
@@ -148,9 +148,9 @@ export function validateManualMapping(
     !Number.isInteger(mapping.headerRowIndex) ||
     mapping.headerRowIndex < 0 ||
     mapping.headerRowIndex >= context.headerRowLimit ||
-    mapping.headerRowIndex >= MANUAL_HEADER_LIMIT
+    mapping.headerRowIndex >= MAX_MANUAL_HEADER_ROWS
   ) {
-    errors.push("헤더 행은 실제 시트의 1~30행 안에서 선택해주세요.");
+    errors.push("헤더 행은 실제 시트의 1~100행 안에서 선택해주세요.");
   }
 
   if (!mapping.dateColumn) {

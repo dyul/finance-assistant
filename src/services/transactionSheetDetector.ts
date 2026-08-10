@@ -6,6 +6,10 @@ import {
   parseTransactions,
 } from "./transactionParser";
 import { standardizeTransactionRows } from "./transactionRowStandardizer";
+import {
+  createUniqueColumnNames,
+  hasDuplicateColumnNames,
+} from "./worksheetColumns";
 
 export const MAX_HEADER_SCAN_ROWS = 30;
 export const MAX_DATA_SAMPLE_ROWS = 50;
@@ -103,7 +107,7 @@ function createObjectRows(
   headerRow: unknown[],
   dataRows: unknown[][],
 ): Record<string, unknown>[] {
-  const headers = headerRow.map((cell) => String(cell ?? "").trim());
+  const headers = createUniqueColumnNames(headerRow);
 
   return dataRows.map((row) => {
     const objectRow: Record<string, unknown> = {};
@@ -168,9 +172,12 @@ function evaluateHeaderCandidate(
   options: DateNormalizationOptions,
 ): HeaderEvaluation | null {
   const headerRow = candidate.rows[headerRowIndex] ?? [];
-  const columnNames = headerRow
-    .map((cell) => String(cell ?? "").trim())
-    .filter((cell) => cell !== "");
+
+  if (hasDuplicateColumnNames(headerRow)) {
+    return null;
+  }
+
+  const columnNames = createUniqueColumnNames(headerRow);
 
   if (columnNames.length === 0) {
     return null;

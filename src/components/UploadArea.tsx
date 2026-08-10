@@ -589,11 +589,11 @@ export default function UploadArea() {
     mappings: ColumnMapping[],
     mode: AnalysisMode,
     automaticDetection: SheetDetectionResult | null = null,
+    existingRows?: Record<string, unknown>[],
   ) {
-    const objectRows = sourceWorkbook.getRows(
-      selectedSheetName,
-      headerRowIndex,
-    );
+    const objectRows =
+      existingRows ??
+      sourceWorkbook.getRows(selectedSheetName, headerRowIndex);
     const standardizedRows = standardizeTransactionRows(
       objectRows,
       mappings,
@@ -761,6 +761,7 @@ export default function UploadArea() {
         mappings,
         "automatic",
         automaticSheetDetection,
+        rows,
       );
       setManualMapping(
         createManualMappingPrefill(
@@ -898,6 +899,7 @@ export default function UploadArea() {
         mappings,
         "automatic",
         detectedSheet,
+        automaticRows,
       );
       setBlockingIssue(null);
     } catch (caughtError) {

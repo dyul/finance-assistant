@@ -40,6 +40,8 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).toContain("분석 중단");
     expect(markup).toContain("거래내역 시트를 자동으로 찾지 못했습니다");
     expect(markup).toContain("직접 설정해서 분석");
+    expect(markup).toContain("직접 설정은 100행까지 지원");
+    expect(markup).toContain("헤더가 101행 이후라면");
   });
 
   it("유효 거래가 0건이면 0원 합계 대신 분석 불가 영향을 안내한다", () => {

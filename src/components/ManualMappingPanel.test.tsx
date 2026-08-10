@@ -49,6 +49,38 @@ describe("수동 매핑 패널", () => {
     expect(markup).toContain("상품판매");
     expect(markup).toContain("이 설정으로 분석");
     expect(markup).toContain("자동 인식으로 되돌리기");
+    expect(markup).toContain("101행 이후의 헤더는 지원 범위 밖입니다.");
+  });
+
+  it("실제 시트 범위 안에서 최대 100행까지만 헤더 후보를 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <ManualMappingPanel
+        sheetNames={["Sheet1"]}
+        mapping={{
+          sheetName: "Sheet1",
+          headerRowIndex: 99,
+          dateColumn: "거래일",
+          amountMode: "signed",
+          amountColumn: "금액",
+        }}
+        preview={{
+          columns: ["거래일", "금액"],
+          rows: [],
+          headerRowLimit: 100,
+        }}
+        errors={[]}
+        canReturnToAutomatic={false}
+        onSheetChange={vi.fn()}
+        onHeaderRowChange={vi.fn()}
+        onMappingChange={vi.fn()}
+        onAnalyze={vi.fn()}
+        onReturnToAutomatic={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain('value="99" selected=""');
+    expect(markup).toContain("100행");
+    expect(markup).not.toContain('value="100"');
   });
 
   it("필수값과 중복 선택 오류를 패널에 표시한다", () => {

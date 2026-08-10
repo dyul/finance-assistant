@@ -66,22 +66,21 @@ function formatMonth(year: number, month: number): string {
 export function getLatestBalance(
   transactions: Transaction[],
 ): number | null {
-  const datedTransactions = transactions.filter(
-    (transaction) => transaction.date !== null,
-  );
+  let latestDate: string | null = null;
+  let latestBalance: number | null = null;
 
-  if (datedTransactions.length === 0) {
-    return null;
+  for (const transaction of transactions) {
+    if (transaction.date === null || transaction.balance === null) {
+      continue;
+    }
+
+    if (latestDate === null || transaction.date >= latestDate) {
+      latestDate = transaction.date;
+      latestBalance = transaction.balance;
+    }
   }
 
-  const sortedTransactions = [...datedTransactions].sort(
-    (a, b) => a.date!.localeCompare(b.date!),
-  );
-
-  const latestTransaction =
-    sortedTransactions[sortedTransactions.length - 1];
-
-  return latestTransaction?.balance ?? null;
+  return latestBalance;
 }
 
 export function generateCashFlowForecast(

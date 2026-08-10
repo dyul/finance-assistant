@@ -1,7 +1,8 @@
-import type {
-  ManualAmountMode,
-  ManualTransactionMapping,
-  ManualWorksheetPreview,
+import {
+  MAX_MANUAL_HEADER_ROWS,
+  type ManualAmountMode,
+  type ManualTransactionMapping,
+  type ManualWorksheetPreview,
 } from "../services/manualMapping";
 
 interface ColumnSelectProps {
@@ -128,6 +129,11 @@ export default function ManualMappingPanel({
               ),
             )}
           </select>
+          <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">
+            실제 데이터가 있는 행 중 최대 {MAX_MANUAL_HEADER_ROWS}행까지
+            선택할 수 있습니다. {MAX_MANUAL_HEADER_ROWS + 1}행 이후의 헤더는
+            지원 범위 밖입니다.
+          </span>
         </label>
 
         <label className="text-sm font-medium text-slate-700">

@@ -7,6 +7,7 @@ import {
 import {
   hasSignedAmountEvidence,
   isResolvedAmount,
+  parseMoney,
   resolveTransactionAmount,
   type AmountSource,
   type AmountStatus,
@@ -21,7 +22,7 @@ export interface Transaction {
   amountStatus: AmountStatus;
   amountSource: AmountSource;
   originalAmountValues: OriginalAmountValues;
-  balance: number;
+  balance: number | null;
   category: string;
   categoryName: string;
   confidence: "high" | "medium" | "low";
@@ -55,16 +56,10 @@ export function hasResolvedTransactionAmount(
   );
 }
 
-function toNumber(value: unknown): number {
-  if (value === null || value === undefined || value === "") {
-    return 0;
-  }
+function parseBalance(value: unknown): number | null {
+  const parsed = parseMoney(value);
 
-  if (typeof value === "number") {
-    return value;
-  }
-
-  return Number(String(value).replace(/,/g, "")) || 0;
+  return parsed.kind === "valid" ? parsed.value : null;
 }
 
 export function parseTransactions(
@@ -105,7 +100,7 @@ export function parseTransactions(
       amountStatus: amountResolution.amountStatus,
       amountSource: amountResolution.amountSource,
       originalAmountValues: amountResolution.originalAmountValues,
-      balance: toNumber(row.balance),
+      balance: parseBalance(row.balance),
       category: classification.category,
       categoryName: classification.displayName,
       confidence: classification.confidence,

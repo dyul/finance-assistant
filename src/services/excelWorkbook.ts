@@ -1,13 +1,16 @@
 import * as XLSX from "xlsx";
 
-import type { ManualWorksheetPreview } from "./manualMapping";
+import {
+  MAX_MANUAL_HEADER_ROWS,
+  type ManualWorksheetPreview,
+} from "./manualMapping";
 import {
   MAX_DATA_SAMPLE_ROWS,
   MAX_HEADER_SCAN_ROWS,
   type TransactionSheetCandidate,
 } from "./transactionSheetDetector";
+import { createUniqueColumnNames } from "./worksheetColumns";
 
-const MANUAL_HEADER_LIMIT = 30;
 const MANUAL_PREVIEW_ROW_COUNT = 5;
 
 export interface ExcelWorkbook {
@@ -22,22 +25,6 @@ export interface ExcelWorkbook {
     sheetName: string,
     headerRowIndex: number,
   ): Record<string, unknown>[];
-}
-
-function createUniqueColumnNames(headerRow: unknown[]): string[] {
-  const usedNames = new Map<string, number>();
-
-  return headerRow.map((cell, columnIndex) => {
-    const rawName = String(cell ?? "").trim();
-    const baseName = rawName || `빈 컬럼 ${columnIndex + 1}`;
-    const duplicateCount = usedNames.get(baseName) ?? 0;
-
-    usedNames.set(baseName, duplicateCount + 1);
-
-    return duplicateCount === 0
-      ? baseName
-      : `${baseName}_${duplicateCount}`;
-  });
 }
 
 function getWorksheetDetectionRows(
@@ -89,7 +76,7 @@ function createPreview(
   const usedRange = XLSX.utils.decode_range(reference);
   const headerRowLimit = Math.max(
     1,
-    Math.min(MANUAL_HEADER_LIMIT, usedRange.e.r + 1),
+    Math.min(MAX_MANUAL_HEADER_ROWS, usedRange.e.r + 1),
   );
 
   if (headerRowIndex < 0 || headerRowIndex >= headerRowLimit) {

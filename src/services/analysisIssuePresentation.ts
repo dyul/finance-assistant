@@ -1,5 +1,6 @@
 import type { DataQualitySummary } from "./dataQualityAnalyzer";
 import { MAX_EXCEL_FILE_SIZE_LABEL } from "./excelUploadValidation";
+import { MAX_MANUAL_HEADER_ROWS } from "./manualMapping";
 
 export type AnalysisIssueSeverity = "blocking" | "warning" | "info";
 
@@ -63,8 +64,7 @@ export function createBlockingAnalysisIssue(
       description:
         "시트 이름, 헤더 위치 또는 거래일·금액 컬럼 구성이 자동 인식 기준과 달랐습니다.",
       impact: "아직 재무 요약과 향후 전망을 계산하지 않았습니다.",
-      action:
-        "직접 설정에서 거래내역 시트, 헤더 행, 거래일과 금액 컬럼을 선택해주세요.",
+      action: `직접 설정에서 거래내역 시트, 헤더 행, 거래일과 금액 컬럼을 선택해주세요. 직접 설정은 ${MAX_MANUAL_HEADER_ROWS}행까지 지원하며, 헤더가 ${MAX_MANUAL_HEADER_ROWS + 1}행 이후라면 Excel에서 ${MAX_MANUAL_HEADER_ROWS}행 안으로 옮겨주세요.`,
     };
   }
 
