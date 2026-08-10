@@ -7,6 +7,10 @@ import {
   createBlockingAnalysisIssue,
   createPartialAnalysisIssues,
 } from "../services/analysisIssuePresentation";
+import { analyzeDataQuality } from "../services/dataQualityAnalyzer";
+import { calculateFinancialSummary } from "../services/financialEngine";
+import { getLatestBalance } from "../services/forecastEngine";
+import { parseTransactions } from "../services/transactionParser";
 
 const normalQuality = {
   totalTransactionCount: 10,
@@ -107,6 +111,60 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).toContain("날짜를 확인할 수 없는 거래 2건");
     expect(markup).toContain("전체 입출금에는 포함");
     expect(markup).toContain("월별 현금흐름·반복거래·최근 잔액·향후 전망에서는 제외");
+  });
+
+  it("날짜 오류 2건이 있는 4건 fixture에서 전체 금액과 최근 잔액 정책을 함께 지킨다", () => {
+    const parsed = parseTransactions([
+      {
+        date: "2026-01-15",
+        description: "정상 입금",
+        income: 500_000,
+        balance: 500_000,
+      },
+      {
+        date: "날짜 미정",
+        description: "날짜 오류 입금",
+        income: 200_000,
+        balance: 700_000,
+      },
+      {
+        date: "2026-02-20",
+        description: "정상 입금 2",
+        income: 300_000,
+        balance: 1_000_000,
+      },
+      {
+        date: "2026-02-30",
+        description: "날짜 오류 출금",
+        expense: 100_000,
+        balance: 900_000,
+      },
+    ]);
+    const quality = analyzeDataQuality(parsed.transactions);
+    const summary = calculateFinancialSummary(parsed.transactions);
+    const issues = createPartialAnalysisIssues(quality, parsed);
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(summary).toMatchObject({
+      transactionCount: 4,
+      validAmountTransactionCount: 4,
+      totalIncome: 1_000_000,
+      totalExpense: 100_000,
+    });
+    expect(quality).toMatchObject({
+      totalTransactionCount: 4,
+      amountIncludedCount: 4,
+      dateAnalysisIncludedCount: 2,
+      validDateCount: 2,
+      invalidDateCount: 2,
+    });
+    expect(getLatestBalance(parsed.transactions)).toBe(1_000_000);
+    expect(markup).toContain("날짜를 확인할 수 없는 거래 2건");
+    expect(markup).toContain("문제");
+    expect(markup).toContain("분석 영향");
+    expect(markup).toContain("해결 방법");
   });
 
   it("방향 미확정 거래가 입출금 계산에서 제외됨을 안내한다", () => {

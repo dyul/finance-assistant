@@ -1,32 +1,104 @@
-# React + TypeScript + Vite
+# Finance Assistant
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+통장 거래내역 Excel을 현재 브라우저에서 분석해 최근 현금흐름과 향후 3개월 예상 잔액을 보여주는 개인사업자용 도구입니다. 결과는 과거 거래 패턴에 근거한 추정치이며 회계·세무 보고서나 미래 잔액의 보장이 아닙니다.
 
-Currently, two official plugins are available:
+## 대상 사용자
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 통장 거래내역은 Excel로 받을 수 있지만 1~3개월 뒤 자금 부족을 따로 계산하기 어려운 개인사업자
+- 반복 매출·고정비와 확정 예정 거래를 함께 보며 단기 자금계획을 세우려는 소규모 사업자
+- 복잡한 ERP보다 한 파일을 빠르게 점검하는 도구가 필요한 사용자
 
-## React Compiler
+## 주요 기능
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `.xlsx`, `.xls` 파일의 거래 시트·헤더·컬럼 자동 인식
+- 날짜·금액 정규화와 입금·출금, 월별·카테고리별 집계
+- 반복 거래와 최근 수입 추세를 반영한 향후 3개월 전망
+- 보수·기준·낙관 예상 범위 및 확정 예정 거래 반영
+- 최저 예상 잔액, 자금 부족 기간, 회복 예상월, 필요 현금 여유 분석
+- 자동 인식 실패 시 시트·헤더·컬럼 직접 설정
+- 데이터 품질·분석 제외 사유와 복구 방법 안내
+- 브라우저 인쇄 기능을 이용한 PDF 저장용 리포트
 
-## Expanding the Oxlint configuration
+## 사용 흐름
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+1. 첫 화면의 안내를 읽고 샘플 Excel을 내려받거나 내 거래내역 Excel을 선택합니다.
+2. 자동 인식 결과와 데이터 품질 안내를 확인합니다. 결과가 다르면 `자동 인식 수정`에서 직접 설정합니다.
+3. 최근 현금흐름과 보수·기준·낙관 3개월 전망을 비교합니다.
+4. 앞으로 확정된 입출금이 있으면 `확정 예정 거래`에 추가합니다.
+5. 현금 위험과 추천 행동을 확인하고 필요한 경우 리포트를 인쇄하거나 PDF로 저장합니다.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## 로컬 실행
+
+Node.js와 npm이 준비된 환경에서 다음 명령을 실행합니다.
+
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+개발 서버가 안내하는 로컬 주소를 브라우저에서 엽니다. 이 저장소의 의존성이 이미 설치된 환경에서는 `npm install`을 다시 실행할 필요가 없습니다.
+
+## 검증 명령어
+
+```bash
+npm test
+npm run lint
+npm run build
+npm run preview
+git diff --check
+```
+
+- `npm test`: 자동 테스트 실행
+- `npm run lint`: 코드 규칙 검사
+- `npm run build`: TypeScript 검사와 production 번들 생성
+- `npm run preview`: 생성된 production 번들을 로컬에서 확인
+
+## 개인정보와 저장 방식
+
+- 업로드한 Excel은 외부 분석 서버로 보내지 않고 현재 브라우저 메모리에서 읽고 분석합니다.
+- 원본 거래내역과 계산된 분석 결과는 브라우저 저장소에 저장하지 않습니다.
+- 선택한 예상 범위와 확정 예정 거래는 파일명을 기준으로 브라우저 `localStorage`에 저장될 수 있습니다.
+- 같은 파일명의 다른 파일은 저장된 설정을 공유할 수 있습니다.
+- 현재 코드에는 거래 데이터를 전송하는 API나 분석·광고 SDK가 없습니다.
+
+민감한 금융 파일은 신뢰할 수 있는 기기에서 사용하고, 공용 기기에서는 사용 후 브라우저 사이트 데이터를 지우는 것을 권장합니다.
+
+## 지원 Excel 범위
+
+- 파일 형식: `.xlsx`, `.xls`
+- 최대 파일 크기: 10MB
+- 자동 헤더 탐색: 1~30행
+- 직접 설정 헤더 선택: 실제 시트에 존재하는 행 중 1~100행
+- 101행 이후의 헤더는 현재 지원하지 않습니다.
+- 수식 셀은 Excel 파일에 저장된 계산 결과(cached result)를 사용하며 수식을 직접 실행하지 않습니다.
+- 거래일과 입금·출금 또는 금액·거래구분 컬럼이 필요합니다. 잔액과 거래내용 컬럼이 있으면 더 많은 분석을 제공합니다.
+
+샘플 파일: [`public/samples/finance-assistant-sample.xlsx`](public/samples/finance-assistant-sample.xlsx)
+
+## 알려진 한계
+
+- 향후 전망은 3개월이며 과거 반복 거래와 최근 수입 추세에 기반한 추정치입니다.
+- 여러 계좌·파일 통합, 로그인, 서버 저장, 기기 간 동기화는 지원하지 않습니다.
+- 유효한 최근 잔액 또는 반복 거래가 부족하면 전망과 위험 분석 일부를 제공하지 못할 수 있습니다.
+- 큰 파일은 브라우저 메모리와 상세 거래 렌더링 성능의 영향을 받을 수 있습니다.
+- 실제 은행·회계 Excel의 모든 변형을 보장하지 않으며 자동 인식 실패 시 직접 설정이 필요합니다.
+
+## 배포
+
+production build 결과물은 `dist/`에 생성됩니다. 저장소의 `vercel.json`에는 다음 응답 헤더가 선언되어 있습니다.
+
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+실제 배포 주소와 런타임 헤더는 배포 환경에서 별도로 확인해야 합니다. 현재 저장소에는 특정 production URL이나 Vercel 프로젝트 연결 정보가 포함되어 있지 않습니다.
+
+## 릴리스 상태
+
+현재 권장 상태는 **제한된 사용자 대상 Beta 후보**입니다. 기능·회귀·빌드 검증은 통과했지만, 아래 `xlsx` 보안 위험을 해소하기 전에는 정식 v1 공개 출시를 권장하지 않습니다. 세부 점검 절차는 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 제품 범위는 [`docs/PRODUCT.md`](docs/PRODUCT.md), 변경 기록은 [`CHANGELOG.md`](CHANGELOG.md)를 참고하세요.
+
+### `xlsx` 의존성 보안 위험
+
+현재 `xlsx@0.18.5`는 사용자가 제공한 Excel을 읽는 런타임 의존성입니다. 보안 감사에서 특수 제작 파일을 처리할 때의 Prototype Pollution과 정규식 서비스 거부(ReDoS) 취약점이 보고되며, npm 레지스트리 버전에는 자동 수정본이 없습니다.
+
+현재 완화책은 브라우저 전용 처리, 지원 확장자 제한, 파싱 전 10MB 제한, 지연 로딩입니다. 이는 위험을 줄이지만 제거하지는 않습니다. 제한된 Beta에서는 출처를 아는 Excel만 사용하도록 안내하고, 정식 v1 전에는 공식 최신 배포판 또는 대체 파서로의 이전과 회귀 테스트를 완료해야 합니다.

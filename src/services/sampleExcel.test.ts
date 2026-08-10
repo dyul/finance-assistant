@@ -69,9 +69,16 @@ describe("사용자용 샘플 Excel", () => {
       recurringTransactions.map((transaction) => transaction.description),
     ).toEqual(expect.arrayContaining(["상품판매", "월세", "전기요금"]));
     expect(recurringTransactions).toHaveLength(3);
+    expect(getLatestBalance(parsed.transactions)).toBe(-497_000);
+    expect(
+      analyses.conservative.forecasts.at(-1)?.expectedEndingBalance,
+    ).toBeCloseTo(277_491, 0);
     expect(analyses.base.forecasts.at(-1)?.expectedEndingBalance).toBeCloseTo(
       456_000,
       2,
     );
+    expect(
+      analyses.optimistic.forecasts.at(-1)?.expectedEndingBalance,
+    ).toBeCloseTo(634_509, 0);
   });
 });
