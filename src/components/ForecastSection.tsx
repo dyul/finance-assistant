@@ -434,7 +434,7 @@ export default function ForecastSection({
                   <p className="mt-1 font-bold text-slate-900">
                     {cashRisk.recoveryMonth
                       ? formatMonth(cashRisk.recoveryMonth)
-                      : "예측기간 내 없음"}
+                      : "전망 기간 내 없음"}
                   </p>
                 </div>
                 <div>

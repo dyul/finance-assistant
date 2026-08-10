@@ -310,7 +310,7 @@ describe("Day 26 실제 사용자 Journey 통합", () => {
       />,
     );
 
-    expect(report).toContain("Forecast 시나리오: 낙관");
+    expect(report).toContain("예상 범위: 낙관");
     expect(report).toContain(`${endingBalance}원`);
     expect(mainForecast).toContain(`${endingBalance}원`);
     expect(report).toContain("500,000원");

@@ -17,9 +17,12 @@ describe("첫 화면 온보딩", () => {
 
     expect(markup).toContain("3개월 현금흐름을 미리 확인하세요");
     expect(markup).toContain("자동 거래 인식");
-    expect(markup).toContain("3개월 Forecast");
+    expect(markup).toContain("향후 3개월 전망");
     expect(markup).toContain("자금 부족 경고");
-    expect(markup).toContain("시나리오 비교");
+    expect(markup).toContain("예상 범위 비교");
+    expect(markup).toContain("최근 입출금 흐름을 분석하고");
+    expect(markup).toContain("향후 3개월 예상 잔액과 자금 부족 가능성");
+    expect(markup).toContain("필요한 현금 여유(버퍼)");
     expect(markup).toContain("권장 Excel 형식");
     expect(markup).toContain("입금액 · 출금액");
     expect(markup).toContain("금액 · 거래구분");

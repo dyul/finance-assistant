@@ -193,10 +193,10 @@ export default function AnalysisReport({
       <section className="report-section mt-6" aria-labelledby="report-forecast">
         <div className="flex items-end justify-between gap-4">
           <h2 id="report-forecast" className="text-lg font-bold">
-            3개월 Forecast
+            향후 3개월 전망
           </h2>
           <p className="text-sm font-semibold">
-            Forecast 시나리오: {getScenarioLabel(selectedScenario)}
+            예상 범위: {getScenarioLabel(selectedScenario)}
           </p>
         </div>
         {forecasts.length > 0 ? (
@@ -233,13 +233,13 @@ export default function AnalysisReport({
             </tbody>
           </table>
         ) : (
-          <p className="mt-3 text-sm">Forecast 결과가 없습니다.</p>
+          <p className="mt-3 text-sm">향후 3개월 전망 결과가 없습니다.</p>
         )}
       </section>
 
       <section className="report-section mt-6" aria-labelledby="report-forecast-summary">
         <h2 id="report-forecast-summary" className="text-lg font-bold">
-          Forecast 핵심 요약
+          향후 3개월 전망 핵심 요약
         </h2>
         <dl className="mt-3 grid grid-cols-4 gap-2 text-sm">
           <ReportMetric
@@ -299,7 +299,7 @@ export default function AnalysisReport({
               }
             />
             <ReportMetric
-              label="필요 현금 버퍼"
+              label="필요한 현금 여유(버퍼)"
               value={formatReportCurrency(cashRisk.requiredCashBuffer)}
             />
           </dl>
@@ -368,11 +368,11 @@ export default function AnalysisReport({
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-700">
           <li>본 결과는 업로드한 거래내역을 기반으로 한 추정치입니다.</li>
           <li>
-            Forecast는 과거 반복거래, 최근 수입 추세와 사용자가 입력한
-            예정거래를 기반으로 합니다.
+            향후 3개월 전망은 과거 반복거래, 최근 수입 추세와 사용자가
+            입력한 확정 예정 거래를 기반으로 한 추정치입니다.
           </li>
           <li>
-            보수·기준·낙관 시나리오는 미래 결과를 보장하지 않습니다.
+            보수·기준·낙관 예상은 미래 결과를 보장하지 않습니다.
           </li>
           <li>실제 입출금 시점과 금액에 따라 결과가 달라질 수 있습니다.</li>
           <li>

@@ -185,7 +185,7 @@ describe("AnalysisReport", () => {
       analysis.cashRisk?.requiredCashBuffer ?? 0,
     ).toLocaleString("ko-KR");
 
-    expect(markup).toContain(`Forecast 시나리오: ${label}`);
+    expect(markup).toContain(`예상 범위: ${label}`);
     expect(markup).toContain(`${endingBalance}원`);
     expect(markup).toContain(`${requiredBuffer}원`);
     expect(markup).toContain("단기 자금 확보 필요");
@@ -200,7 +200,9 @@ describe("AnalysisReport", () => {
     expect(markup).toContain("+953,000원");
     expect(markup).toContain("1개월");
     expect(markup).toContain("2026년 5월");
-    expect(markup).toContain("필요 현금 버퍼");
+    expect(markup).toContain("필요한 현금 여유(버퍼)");
+    expect(markup).toContain("기반으로 한 추정치입니다");
+    expect(markup).toContain("미래 결과를 보장하지 않습니다");
   });
 
   it("예정 입금 500,000원 반영 결과와 Action을 그대로 표시한다", () => {

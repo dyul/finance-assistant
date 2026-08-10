@@ -65,10 +65,11 @@ describe("파일 업로드 영역", () => {
     expect(markup).toContain("거래내역");
     expect(markup).toContain("높음");
     expect(markup).toContain("자동 인식 수정");
-    expect(markup).toContain("현재 브라우저에서 분석되며");
-    expect(markup).toContain("원본 거래내역을");
+    expect(markup).toContain("서버로 전송하지 않고 현재 브라우저에서");
+    expect(markup).toContain("분석합니다");
+    expect(markup).toContain("원본 거래내역은");
     expect(markup).toContain("브라우저 저장소에 저장하지 않습니다");
-    expect(markup).toContain("예정거래와 선택 시나리오만");
+    expect(markup).toContain("확정 예정 거래와 선택 예상 범위만");
     expect(markup).toContain("최대 10MB");
     expect(markup).toContain("자동 인식 확실도");
     expect(markup).toContain('class="sr-only"');

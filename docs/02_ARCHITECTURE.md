@@ -1,76 +1,34 @@
 # Finance Assistant Architecture
 
-## Overall Flow
+## 현재 구조
+
+Finance Assistant MVP는 React + TypeScript로 구현된 브라우저 전용 애플리케이션이다. 백엔드, AI 모델 호출, 외부 분석 API와 계정 시스템이 없다.
 
 ```text
-User
-    │
-    ▼
-Upload Excel
-    │
-    ▼
-Excel Parser
-    │
-    ▼
-AI Structure Analyzer
-    │
-    ▼
-Standard Data Model
-    │
-    ▼
-Financial Engine
-    │
-    ▼
-AI Insight Generator
-    │
-    ▼
-Dashboard / PDF Report
+사용자 Excel 선택
+  → 브라우저 메모리에서 workbook 읽기
+  → 거래 시트·헤더·컬럼 자동 탐지 또는 직접 설정
+  → 날짜·금액·입출금 정규화와 데이터 품질 검사
+  → 월별 집계·반복 거래·향후 3개월 전망
+  → 현금 위험·추천 액션·인쇄/PDF 리포트 표시
 ```
 
----
+## 계산 책임
 
-## Standard Data Model
+- 날짜·금액 파싱과 오류 분리
+- 입금·출금과 월별 합계
+- 반복 거래 탐지와 수입 추세
+- 보수·기준·낙관 예상 범위
+- 확정 예정 거래 반영
+- 자금 부족 위험과 추천 액션
 
-모든 업로드 파일은 내부적으로 표준 데이터 모델로 변환한다.
+모든 계산은 TypeScript 서비스의 명시적 규칙으로 수행된다. 현재 AI 모델이 파일을 해석하거나 인사이트를 생성하지 않는다.
 
-예시
+## 개인정보와 저장 범위
 
-### 거래내역
+- 원본 Excel 거래내역은 서버로 전송하지 않고 브라우저 메모리에서 분석한다.
+- 원본 거래와 분석 결과는 브라우저 저장소에 저장하지 않는다.
+- 선택 예상 범위와 확정 예정 거래만 파일명 기준으로 `localStorage`에 저장될 수 있다.
+- 인쇄·PDF 저장은 브라우저 인쇄 기능을 사용한다.
 
-- Date
-- Amount
-- Description
-- Category
-
-### 손익계산서
-
-- Period
-- Revenue
-- Expense
-- Operating Profit
-- Net Profit
-
----
-
-## AI Responsibility
-
-AI는
-
-- 파일 유형 판별
-- 컬럼 의미 추론
-- 인사이트 생성
-
-만 담당한다.
-
----
-
-## Code Responsibility
-
-프로그램은
-
-- KPI 계산
-- 통계
-- 차트
-- 보고서 생성
-
-을 담당한다.
+제품 범위와 제한의 기준은 [PRODUCT.md](./PRODUCT.md)를 참고한다.

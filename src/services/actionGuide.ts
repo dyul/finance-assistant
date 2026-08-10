@@ -192,7 +192,7 @@ export function createActionGuide(
       type: "extended_shortage",
       priority: "high",
       title: "자금 부족 기간 장기화",
-      message: `예측기간 중 ${cashRisk.negativeMonthCount}개월 동안 월말 잔액이 마이너스로 예상됩니다.`,
+      message: `전망 기간 중 ${cashRisk.negativeMonthCount}개월 동안 월말 잔액이 마이너스로 예상됩니다.`,
       action: "지출 시기를 조정하거나 추가 입금 계획을 검토하세요.",
     });
   }
@@ -230,7 +230,7 @@ export function createActionGuide(
       priority:
         (cashRisk?.requiredCashBuffer ?? 0) > 0 ? "high" : "medium",
       title: "예정 입금 일정 확인",
-      message: `${formatDate(scheduledIncome.date)} ${scheduledIncome.description} ${formatCurrency(scheduledIncome.amount)}이 Forecast에 반영되어 있습니다.`,
+      message: `${formatDate(scheduledIncome.date)} ${scheduledIncome.description} ${formatCurrency(scheduledIncome.amount)}이 향후 3개월 전망에 반영되어 있습니다.`,
       action: "입금 일정이 지연되지 않도록 거래처 지급 일정을 확인하세요.",
       amount: scheduledIncome.amount,
       month: scheduledIncome.date.slice(0, 7),

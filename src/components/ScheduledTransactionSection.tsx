@@ -76,7 +76,7 @@ export default function ScheduledTransactionSection({
 
         <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
           <p className="leading-6">
-            예정거래와 시나리오 선택은 파일별로 이 브라우저에 자동
+            확정 예정 거래와 선택 예상 범위는 파일별로 이 브라우저에 자동
             저장됩니다. 원본 Excel 거래내역과 분석 결과는 브라우저 저장소에
             저장하지 않습니다.
           </p>
@@ -198,8 +198,10 @@ export default function ScheduledTransactionSection({
           className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
           role="status"
         >
-          저장된 예정거래 중 현재 3개월 전망 기간 밖인 거래가 {outOfPeriodCount}
-          건 있습니다. 목록에는 유지하지만 이번 전망에서는 제외했습니다.
+          저장된 확정 예정 거래 중 현재 3개월 전망 기간 밖인 거래가
+          {" "}
+          {outOfPeriodCount}건 있습니다. 목록에는 유지하지만 이번 전망에서는
+          제외했습니다.
           전망에 포함하려면 기존 거래를 삭제하고 위 기간 안의 날짜로 다시
           추가해주세요.
         </p>

@@ -18,6 +18,7 @@ describe("확정 예정 거래 영역", () => {
     );
 
     expect(markup).toContain("확정 예정 거래");
+    expect(markup).toContain("확정 예정 거래와 선택 예상 범위");
     expect(markup).toContain('type="date"');
     expect(markup).toContain("입금/출금");
     expect(markup).toContain("추가된 확정 예정 거래가 없습니다.");
