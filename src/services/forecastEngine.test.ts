@@ -218,6 +218,50 @@ describe("반복 수입 추세 계산", () => {
       2,
     );
   });
+
+  it("반복 출금 평균의 내부 소수점을 이월해 표시값 간 1원 차이를 설명한다", () => {
+    const recurringTransactions = [
+      createIncomeRecurringTransaction([
+        900_000,
+        950_000,
+        1_000_000,
+      ]),
+      createRecurringTransaction({
+        description: "월세",
+        averageAmount: 700_000,
+        lastMonth: "2026-03",
+      }),
+      createRecurringTransaction({
+        description: "전기요금",
+        averageAmount: 247_000 / 3,
+        lastMonth: "2026-03",
+      }),
+    ];
+    const forecasts = createForecastAnalysis(
+      recurringTransactions,
+      -497_000,
+    ).forecasts;
+    const april = forecasts[0];
+    const may = forecasts[1];
+
+    expect(april.expectedEndingBalance).toBeCloseTo(
+      -229_333.333_333,
+      6,
+    );
+    expect(may.expectedNetCashFlow).toBeCloseTo(
+      317_666.666_667,
+      6,
+    );
+    expect(may.expectedEndingBalance).toBeCloseTo(
+      88_333.333_333,
+      6,
+    );
+    expect(
+      Math.round(april.expectedEndingBalance) +
+        Math.round(may.expectedNetCashFlow),
+    ).toBe(88_334);
+    expect(Math.round(may.expectedEndingBalance)).toBe(88_333);
+  });
 });
 
 describe("3개월 Forecast 시나리오", () => {

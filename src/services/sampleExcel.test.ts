@@ -11,6 +11,7 @@ import {
   createScenarioForecastAnalyses,
   getLatestBalance,
 } from "./forecastEngine";
+import { aggregateMonthly } from "./monthlyAggregator";
 import { detectRecurringTransactions } from "./recurringTransactionDetector";
 import { detectTransactionSheet } from "./transactionSheetDetector";
 import { parseTransactions } from "./transactionParser";
@@ -50,6 +51,7 @@ describe("사용자용 샘플 Excel", () => {
       { date1904: workbook.date1904 },
     );
     const summary = calculateFinancialSummary(parsed.transactions);
+    const monthly = aggregateMonthly(parsed.transactions);
     const recurringTransactions = detectRecurringTransactions(
       parsed.transactions,
     );
@@ -70,6 +72,12 @@ describe("사용자용 샘플 Excel", () => {
     ).toEqual(expect.arrayContaining(["상품판매", "월세", "전기요금"]));
     expect(recurringTransactions).toHaveLength(3);
     expect(getLatestBalance(parsed.transactions)).toBe(-497_000);
+    expect(
+      monthly.reduce((total, item) => total + item.income, 0),
+    ).toBe(summary.totalIncome);
+    expect(
+      monthly.reduce((total, item) => total + item.expense, 0),
+    ).toBe(summary.totalExpense);
     expect(
       analyses.conservative.forecasts.at(-1)?.expectedEndingBalance,
     ).toBeCloseTo(277_491, 0);

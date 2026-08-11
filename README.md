@@ -75,6 +75,8 @@ git diff --check
 
 샘플 파일: [`public/samples/finance-assistant-sample.xlsx`](public/samples/finance-assistant-sample.xlsx)
 
+사용 중인 오픈소스 소프트웨어의 저작권과 라이선스 고지는 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)에서 확인할 수 있습니다.
+
 ## 알려진 한계
 
 - 향후 전망은 3개월이며 과거 반복 거래와 최근 수입 추세에 기반한 추정치입니다.
@@ -95,10 +97,10 @@ production build 결과물은 `dist/`에 생성됩니다. 저장소의 `vercel.j
 
 ## 릴리스 상태
 
-현재 권장 상태는 **제한된 사용자 대상 Beta 후보**입니다. 기능·회귀·빌드 검증은 통과했지만, 아래 `xlsx` 보안 위험을 해소하기 전에는 정식 v1 공개 출시를 권장하지 않습니다. 세부 점검 절차는 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 제품 범위는 [`docs/PRODUCT.md`](docs/PRODUCT.md), 변경 기록은 [`CHANGELOG.md`](CHANGELOG.md)를 참고하세요.
+현재 권장 상태는 **제한된 사용자 대상 Beta 후보**입니다. 기능·회귀·빌드 검증과 `xlsx` Release Gate 보안 수정은 완료했지만, 실제 production 재배포와 사용자 검증 전에는 공개 범위를 제한하는 것을 권장합니다. 세부 점검 절차는 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 제품 범위는 [`docs/PRODUCT.md`](docs/PRODUCT.md), 변경 기록은 [`CHANGELOG.md`](CHANGELOG.md)를 참고하세요.
 
-### `xlsx` 의존성 보안 위험
+### `xlsx` 의존성 보안 상태
 
-현재 `xlsx@0.18.5`는 사용자가 제공한 Excel을 읽는 런타임 의존성입니다. 보안 감사에서 특수 제작 파일을 처리할 때의 Prototype Pollution과 정규식 서비스 거부(ReDoS) 취약점이 보고되며, npm 레지스트리 버전에는 자동 수정본이 없습니다.
+Excel 파서는 SheetJS 공식 CDN 배포판 `xlsx@0.20.3`을 사용합니다. 기존 `xlsx@0.18.5`에 해당하던 Prototype Pollution(`<0.19.3`)과 정규식 서비스 거부(`<0.20.2`) 영향 범위를 벗어나며, npm 보안 감사에서도 두 `xlsx` 경고가 제거된 것을 확인했습니다.
 
-현재 완화책은 브라우저 전용 처리, 지원 확장자 제한, 파싱 전 10MB 제한, 지연 로딩입니다. 이는 위험을 줄이지만 제거하지는 않습니다. 제한된 Beta에서는 출처를 아는 Excel만 사용하도록 안내하고, 정식 v1 전에는 공식 최신 배포판 또는 대체 파서로의 이전과 회귀 테스트를 완료해야 합니다.
+npm registry의 `xlsx` 최신 버전은 여전히 0.18.5이므로 `package.json`과 lockfile은 공식 0.20.3 tarball URL과 무결성 해시를 고정합니다. 브라우저 전용 처리, 지원 확장자 제한, 파싱 전 10MB 제한, 지연 로딩도 그대로 유지합니다. 보안 감사에는 별도로 Vite 빌드 체인의 `nanoid` high 경고 1건이 남아 있어 후속 업데이트가 필요합니다.

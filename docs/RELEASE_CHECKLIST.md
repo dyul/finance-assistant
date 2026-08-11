@@ -4,7 +4,8 @@
 
 - 권장 버전: `0.1.0-beta.1`
 - 권장 배포 범위: 출처를 아는 Excel을 사용하는 제한된 Beta
-- 정식 v1 차단 조건: `xlsx@0.18.5` 보안 위험 해소 및 production 런타임 점검
+- 해소된 차단 조건: `xlsx@0.18.5`를 공식 `xlsx@0.20.3`으로 이전하고 Excel 회귀·보안 감사 완료
+- 남은 공개 확대 조건: production 재배포 smoke, 실제 사용자 검증, Vite 빌드 체인의 `nanoid` 보안 업데이트 검토
 
 ## 배포 전
 
@@ -27,10 +28,10 @@
 
 ## 정식 v1 전 필수
 
-- [ ] `xlsx` 공식 최신 배포판 또는 안전한 대체 파서 후보 비교
-- [ ] 새 파서의 `.xlsx`·`.xls`, 날짜 시스템, 수식 cached result, 다중 시트 호환성 검증
-- [ ] Day 1~30 전체 자동 테스트와 실제 복합 fixture 회귀 검증
-- [ ] Prototype Pollution·ReDoS 권고가 해소되었는지 재감사
+- [x] `xlsx` 공식 최신 배포판 또는 안전한 대체 파서 후보 비교
+- [x] 새 파서의 `.xlsx`·`.xls`, 날짜 시스템, 수식 cached result, 다중 시트 호환성 검증
+- [x] Day 1~30 전체 자동 테스트와 실제 복합 fixture 회귀 검증
+- [x] Prototype Pollution·ReDoS 권고가 해소되었는지 재감사
 - [ ] 실제 개인사업자 사용자 테스트와 치명적 피드백 반영
 - [ ] production URL, 배포 소유자, 장애 연락 경로 기록
 

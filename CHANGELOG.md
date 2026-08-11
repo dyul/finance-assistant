@@ -26,11 +26,11 @@
 
 - Excel은 외부 분석 서버로 전송하지 않고 현재 브라우저에서 처리
 - `.xlsx`·`.xls`, 최대 10MB 사전 검증과 Excel 파서 지연 로딩
+- 취약한 npm registry 배포본 `xlsx@0.18.5`를 SheetJS 공식 CDN 배포본 `xlsx@0.20.3`으로 이전하고 Prototype Pollution·ReDoS 영향 범위와 Excel 회귀 테스트를 재검증
 - Vercel 배포 설정에 `nosniff`, referrer, camera·microphone·geolocation 제한 헤더 선언
 
 ### 알려진 문제
 
-- `xlsx@0.18.5`에 특수 제작 파일 관련 Prototype Pollution 및 ReDoS 보안 권고가 있습니다. npm 자동 수정본이 없어 정식 v1 전 의존성 이전이 필요합니다.
+- production 의존성 감사에는 Vite 빌드 체인을 통해 설치된 `nanoid` high 경고 1건이 남아 있으며, 앱의 브라우저 런타임 의존성과 구분해 후속 업데이트가 필요합니다.
 - 실제 production URL과 런타임 응답 헤더는 저장소만으로 확인할 수 없습니다.
 - 여러 계좌·파일 통합, 서버 저장, 계정·기기 간 동기화는 지원하지 않습니다.
-
