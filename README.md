@@ -103,4 +103,4 @@ production build 결과물은 `dist/`에 생성됩니다. 저장소의 `vercel.j
 
 Excel 파서는 SheetJS 공식 CDN 배포판 `xlsx@0.20.3`을 사용합니다. 기존 `xlsx@0.18.5`에 해당하던 Prototype Pollution(`<0.19.3`)과 정규식 서비스 거부(`<0.20.2`) 영향 범위를 벗어나며, npm 보안 감사에서도 두 `xlsx` 경고가 제거된 것을 확인했습니다.
 
-npm registry의 `xlsx` 최신 버전은 여전히 0.18.5이므로 `package.json`과 lockfile은 공식 0.20.3 tarball URL과 무결성 해시를 고정합니다. 브라우저 전용 처리, 지원 확장자 제한, 파싱 전 10MB 제한, 지연 로딩도 그대로 유지합니다. 보안 감사에는 별도로 Vite 빌드 체인의 `nanoid` high 경고 1건이 남아 있어 후속 업데이트가 필요합니다.
+npm registry의 `xlsx` 최신 버전은 여전히 0.18.5이므로 `package.json`과 lockfile은 공식 0.20.3 tarball URL과 무결성 해시를 고정합니다. 브라우저 전용 처리, 지원 확장자 제한, 파싱 전 10MB 제한, 지연 로딩도 그대로 유지합니다. Vite 빌드 체인의 `nanoid`는 안전한 patch 버전 3.3.18로 갱신했으며, 전체·production 의존성 보안 감사에서 취약점 0건을 확인했습니다.
