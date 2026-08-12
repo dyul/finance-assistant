@@ -97,7 +97,9 @@ production build 결과물은 `dist/`에 생성됩니다. 저장소의 `vercel.j
 
 ## 릴리스 상태
 
-현재 권장 상태는 **제한된 사용자 대상 Beta 후보**입니다. 기능·회귀·빌드 검증과 `xlsx` Release Gate 보안 수정은 완료했지만, 실제 production 재배포와 사용자 검증 전에는 공개 범위를 제한하는 것을 권장합니다. 세부 점검 절차는 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 제품 범위는 [`docs/PRODUCT.md`](docs/PRODUCT.md), 변경 기록은 [`CHANGELOG.md`](CHANGELOG.md)를 참고하세요.
+현재 권장 상태는 **Public Beta 테스트 시작 단계**입니다. Vercel production 배포와 정상 샘플 분석을 확인했고, `xlsx`·`nanoid` 보안 수정 및 npm 보안 감사 0건을 확인했습니다. 다만 아직 실제 사용자와 실제 은행 Excel의 호환성을 검증하는 단계이므로 Stable, Production Ready 또는 회계 정확성 보장을 의미하지 않습니다.
+
+Beta 진행 방법은 [`docs/BETA_TEST_GUIDE.md`](docs/BETA_TEST_GUIDE.md), 개인정보를 제외한 이슈 기록 형식은 [`docs/BETA_ISSUE_TEMPLATE.md`](docs/BETA_ISSUE_TEMPLATE.md)를 참고하세요. 세부 점검 절차는 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 제품 범위는 [`docs/PRODUCT.md`](docs/PRODUCT.md), 변경 기록은 [`CHANGELOG.md`](CHANGELOG.md)를 참고하세요.
 
 ### `xlsx` 의존성 보안 상태
 

@@ -1,6 +1,6 @@
 # 변경 기록
 
-주요 변경사항은 이 문서에 기록합니다. 현재 버전 값은 아직 `0.0.0`이며, 아래 버전은 Release Candidate 점검 결과에 따른 권장 후보일 뿐 실제 태그나 배포 버전이 아닙니다.
+주요 변경사항은 이 문서에 기록합니다. 현재 package 버전은 `0.1.0-beta.1`이며, 이 문서의 `Unreleased` 표기는 아직 릴리스 tag를 만들지 않았다는 뜻입니다.
 
 ## [0.1.0-beta.1] - Unreleased
 
@@ -15,6 +15,8 @@
 - 온보딩, 실제 업로드 파이프라인을 통과하는 샘플 Excel
 - 파일명 기준 예상 범위와 확정 예정 거래 브라우저 저장
 - 대표 사용자 흐름, 복합 Excel, 성능·경쟁 상태 회귀 테스트
+- SheetJS CE `xlsx@0.20.3`의 Apache-2.0 제3자 라이선스 고지
+- 개인정보 보호 원칙을 포함한 Beta 테스트 가이드와 이슈 기록 템플릿
 
 ### 변경
 
@@ -30,7 +32,15 @@
 - Vite·PostCSS 빌드 체인의 `nanoid`를 3.3.16에서 안전한 patch 버전 3.3.18로 갱신하고 전체·production 의존성 보안 감사 0건 확인
 - Vercel 배포 설정에 `nosniff`, referrer, camera·microphone·geolocation 제한 헤더 선언
 
+### 검증
+
+- Vercel production 배포와 정상 샘플 Excel 분석 성공 확인
+- 375px 모바일 핵심 흐름과 production build 재검증
+- 31개 테스트 파일의 287개 테스트, lint와 build 통과
+- 전체 npm 의존성 보안 감사 0건 확인
+
 ### 알려진 문제
 
-- 실제 production URL과 런타임 응답 헤더는 저장소만으로 확인할 수 없습니다.
+- 실제 production URL, 배포 소유자와 피드백 채널은 저장소에 기록되어 있지 않습니다.
+- 실제 은행 Excel 전반의 호환성과 실제 사용자 사용성은 Public Beta에서 검증해야 합니다.
 - 여러 계좌·파일 통합, 서버 저장, 계정·기기 간 동기화는 지원하지 않습니다.
