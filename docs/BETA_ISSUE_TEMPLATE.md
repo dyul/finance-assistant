@@ -17,6 +17,7 @@
 - 실제 결과:
 - 기대 결과:
 - 화면에 표시된 오류 종류 또는 문구:
+- 발생 빈도:
 - 재현 여부: 항상 / 가끔 / 한 번 / 확인하지 못함
 - 재현 순서:
 
@@ -36,6 +37,7 @@
 
 ## 개인정보 확인
 
+- [ ] 실명, 회사명과 사업자등록번호를 기록하지 않았습니다.
 - [ ] 실제 계좌번호를 기록하지 않았습니다.
 - [ ] 실제 거래 상대방이나 거래 적요를 기록하지 않았습니다.
 - [ ] 실제 금액과 잔액을 기록하지 않았습니다.
@@ -43,14 +45,26 @@
 - [ ] 원본 Excel을 첨부하거나 보관하지 않았습니다.
 - [ ] 스크린샷이 있다면 금융정보를 가렸습니다.
 
-## 분류
+## 영향과 심각도
 
-- [ ] Blocking
-- [ ] Partial
-- [ ] UX
-- [ ] Compatibility
-- [ ] Performance
+- 분석 영향: Blocking / Partial / 없음
+- 심각도: P0 / P1 / P2 / P3
+- 사용자 가치 영향:
+
+심각도 기준은 [`BETA_TEST_RESULTS.md`](./BETA_TEST_RESULTS.md)의 `Issue Severity`를 따릅니다.
+
+## Feedback 분류
+
 - [ ] Calculation
+- [ ] Excel Compatibility
+- [ ] Forecast Understanding
+- [ ] UX
+- [ ] Error Recovery
+- [ ] Performance
+- [ ] PDF
+- [ ] Privacy
+- [ ] Pricing
+- [ ] Feature Request
 - [ ] Other
 
 ## 내부 처리
