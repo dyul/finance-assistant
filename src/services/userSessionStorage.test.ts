@@ -155,6 +155,30 @@ describe("사용자 Forecast 설정 저장", () => {
     });
   });
 
+  it("같은 기본 이름의 Excel과 CSV 설정을 확장자까지 포함해 분리한다", () => {
+    const storage = new MemoryStorage();
+
+    saveUserFileSession(
+      "거래내역.xlsx",
+      { selectedScenario: "optimistic", scheduledTransactions: [income] },
+      storage,
+    );
+    saveUserFileSession(
+      "거래내역.csv",
+      { selectedScenario: "conservative", scheduledTransactions: [] },
+      storage,
+    );
+
+    expect(loadUserFileSession("거래내역.xlsx", storage).session).toMatchObject({
+      selectedScenario: "optimistic",
+      scheduledTransactions: [income],
+    });
+    expect(loadUserFileSession("거래내역.csv", storage).session).toMatchObject({
+      selectedScenario: "conservative",
+      scheduledTransactions: [],
+    });
+  });
+
   it("예정거래 추가·삭제와 시나리오 변경을 최신 상태로 저장한다", () => {
     const storage = new MemoryStorage();
 
@@ -275,8 +299,8 @@ describe("사용자 Forecast 설정 저장", () => {
     saveUserSession(
       {
         version: 1,
-        files: { "A회사.xlsx": unsafeFileSession },
-        lastFileName: "A회사.xlsx",
+        files: { "거래내역.csv": unsafeFileSession },
+        lastFileName: "거래내역.csv",
       },
       storage,
     );

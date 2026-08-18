@@ -55,7 +55,7 @@ describe("Dashboard 핵심 결과", () => {
 
     expect(markup).toContain("확인할 수 없음");
     expect(markup).toContain("계산할 수 없음");
-    expect(markup).toContain("Excel에 잔액 컬럼이 있으면");
+    expect(markup).toContain("원본 파일에 잔액 컬럼이 있으면");
     expect(markup).toContain("유효한 거래일이 있으면");
   });
 

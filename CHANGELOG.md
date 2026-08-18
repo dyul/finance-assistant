@@ -13,6 +13,7 @@
 - 보수·기준·낙관 예상 범위와 범위별 현금 위험 분석
 - 추천 행동, 데이터 품질·복구 안내, 인쇄·PDF용 분석 리포트
 - 온보딩, 실제 업로드 파이프라인을 통과하는 샘플 Excel
+- 패키지 추가 없이 UTF-8·UTF-8 BOM과 브라우저 지원 CP949/EUC-KR CSV 입력, quoted field 파싱과 샘플 CSV
 - 파일명 기준 예상 범위와 확정 예정 거래 브라우저 저장
 - 대표 사용자 흐름, 복합 Excel, 성능·경쟁 상태 회귀 테스트
 - SheetJS CE `xlsx@0.20.3`의 Apache-2.0 제3자 라이선스 고지
@@ -24,11 +25,12 @@
 - 가로 스크롤 중심의 전망 표를 반응형 월별 카드로 개선
 - 최근 거래 행 순서가 아닌 정규화된 거래일로 최근 잔액을 결정
 - 불완전한 데이터는 0원으로 추정하지 않고 부분 분석 또는 분석 중단으로 구분
+- Excel·CSV adapter를 공통 거래 분석 pipeline에 연결하고 CSV 전용 인코딩·문법·헤더 복구 안내 추가
 
 ### 보안
 
 - Excel은 외부 분석 서버로 전송하지 않고 현재 브라우저에서 처리
-- `.xlsx`·`.xls`, 최대 10MB 사전 검증과 Excel 파서 지연 로딩
+- `.xlsx`·`.xls`·`.csv`, 최대 10MB 사전 검증과 Excel 파서 지연 로딩
 - 취약한 npm registry 배포본 `xlsx@0.18.5`를 SheetJS 공식 CDN 배포본 `xlsx@0.20.3`으로 이전하고 Prototype Pollution·ReDoS 영향 범위와 Excel 회귀 테스트를 재검증
 - Vite·PostCSS 빌드 체인의 `nanoid`를 3.3.16에서 안전한 patch 버전 3.3.18로 갱신하고 전체·production 의존성 보안 감사 0건 확인
 - Vercel 배포 설정에 `nosniff`, referrer, camera·microphone·geolocation 제한 헤더 선언
@@ -37,7 +39,7 @@
 
 - Vercel production 배포와 정상 샘플 Excel 분석 성공 확인
 - 375px 모바일 핵심 흐름과 production build 재검증
-- 31개 테스트 파일의 287개 테스트, lint와 build 통과
+- 34개 테스트 파일의 330개 테스트, lint와 build 통과
 - 전체 npm 의존성 보안 감사 0건 확인
 
 ### 알려진 문제

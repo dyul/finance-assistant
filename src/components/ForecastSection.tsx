@@ -229,7 +229,7 @@ export default function ForecastSection({
           향후 3개월 전망을 계산할 수 없습니다
         </h3>
         <p className="mt-2 text-sm leading-6 text-amber-800">
-          전망에는 최근 잔액과 여러 달에 반복된 거래가 필요합니다. Excel의
+          전망에는 최근 잔액과 여러 달에 반복된 거래가 필요합니다. 원본 파일의
           잔액·거래일·적요 컬럼을 확인하고 다시 업로드하거나, 자동 인식이
           잘못됐다면 위의 자동 인식 수정에서 컬럼을 직접 선택해주세요.
         </p>

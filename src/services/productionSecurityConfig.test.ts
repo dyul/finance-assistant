@@ -38,9 +38,12 @@ describe("Production 보안 설정", () => {
     );
   });
 
-  it("public 샘플 폴더에는 합성 거래내역 샘플 하나만 둔다", () => {
+  it("public 샘플 폴더에는 Excel·CSV 합성 거래내역만 둔다", () => {
     expect(
       readdirSync(resolve(process.cwd(), "public", "samples")),
-    ).toEqual(["finance-assistant-sample.xlsx"]);
+    ).toEqual([
+      "finance-assistant-sample.csv",
+      "finance-assistant-sample.xlsx",
+    ]);
   });
 });

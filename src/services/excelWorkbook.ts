@@ -7,24 +7,14 @@ import {
 import {
   MAX_DATA_SAMPLE_ROWS,
   MAX_HEADER_SCAN_ROWS,
-  type TransactionSheetCandidate,
 } from "./transactionSheetDetector";
 import { createUniqueColumnNames } from "./worksheetColumns";
+import type { TransactionDataSource } from "./transactionDataSource";
 
 const MANUAL_PREVIEW_ROW_COUNT = 5;
 
-export interface ExcelWorkbook {
-  sheetNames: string[];
-  date1904: boolean;
-  getSheetCandidates(): TransactionSheetCandidate[];
-  getPreview(
-    sheetName: string,
-    headerRowIndex: number,
-  ): ManualWorksheetPreview;
-  getRows(
-    sheetName: string,
-    headerRowIndex: number,
-  ): Record<string, unknown>[];
+export interface ExcelWorkbook extends TransactionDataSource {
+  sourceType: "excel";
 }
 
 function getWorksheetDetectionRows(
@@ -134,6 +124,7 @@ export function createExcelWorkbook(
   const sheetNames = [...workbook.SheetNames];
 
   return {
+    sourceType: "excel",
     sheetNames,
     date1904: workbook.Workbook?.WBProps?.date1904 === true,
     getSheetCandidates() {

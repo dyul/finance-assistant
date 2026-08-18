@@ -60,7 +60,7 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).not.toContain("0원");
   });
 
-  it("10MB를 초과한 Excel을 분석 전에 차단하고 복구 방법을 안내한다", () => {
+  it("10MB를 초과한 파일을 분석 전에 차단하고 복구 방법을 안내한다", () => {
     const markup = renderToStaticMarkup(
       <AnalysisIssuePanel
         issues={[createBlockingAnalysisIssue("fileTooLarge")]}
@@ -70,7 +70,25 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).toContain("파일 크기가 너무 큽니다");
     expect(markup).toContain("10MB 이하");
     expect(markup).toContain("파일을 읽지 않았으며");
-    expect(markup).toContain("기간을 나누거나 불필요한 시트를 제거");
+    expect(markup).toContain("기간을 나누거나 불필요한 행·시트를 제거");
+  });
+
+  it("CSV 인코딩·문법·헤더 실패를 각각 복구 가능한 blocking으로 안내한다", () => {
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel
+        issues={[
+          createBlockingAnalysisIssue("csvDecodingFailed"),
+          createBlockingAnalysisIssue("csvReadFailed"),
+          createBlockingAnalysisIssue("csvHeaderNotFound"),
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("CSV 문자 인코딩을 확인할 수 없습니다");
+    expect(markup).toContain("UTF-8 형식으로 다시 저장");
+    expect(markup).toContain("쉼표로 구분된 CSV 구조");
+    expect(markup).toContain("CSV 거래내역 헤더를 자동으로 찾지 못했습니다");
+    expect(markup).toContain("직접 설정은 100행까지 지원");
   });
 
   it("금액 오류는 정상 거래 계산을 유지하는 부분 분석 영향을 설명한다", () => {

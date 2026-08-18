@@ -4,6 +4,10 @@ import type {
   SheetDetectionResult,
 } from "../services/transactionSheetDetector";
 import { MAX_EXCEL_FILE_SIZE_LABEL } from "../services/excelUploadValidation";
+import type {
+  TransactionSourceType,
+  TransactionTextEncoding,
+} from "../services/transactionDataSource";
 import {
   getConfidenceLabel,
   getConfidenceStyle,
@@ -13,6 +17,8 @@ import {
 interface FileUploadSectionProps {
   fileName: string;
   fileSize: string;
+  sourceType: TransactionSourceType | null;
+  textEncoding?: TransactionTextEncoding;
   sheetNames: string[];
   sheetDetection: SheetDetectionResult | null;
   automaticSheetDetection: SheetDetectionResult | null;
@@ -28,6 +34,8 @@ interface FileUploadSectionProps {
 export default function FileUploadSection({
   fileName,
   fileSize,
+  sourceType,
+  textEncoding,
   sheetNames,
   sheetDetection,
   automaticSheetDetection,
@@ -40,16 +48,16 @@ export default function FileUploadSection({
   onReturnToAutomatic,
 }: FileUploadSectionProps) {
   return (
-    <section id="excel-upload" aria-labelledby="excel-upload-heading">
+    <section id="file-upload" aria-labelledby="file-upload-heading">
       <div className="mb-5">
         <h2
-          id="excel-upload-heading"
+          id="file-upload-heading"
           className="text-lg font-semibold text-slate-900"
         >
-          엑셀 업로드
+          거래내역 파일 업로드
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          평소 사용하던 재무 엑셀을 그대로 올려주세요.
+          평소 사용하던 Excel 또는 CSV 거래내역을 올려주세요.
         </p>
       </div>
 
@@ -63,14 +71,14 @@ export default function FileUploadSection({
         <span className="font-medium text-slate-700">
           {isProcessingFile
             ? "파일을 분석하고 있습니다..."
-            : "엑셀 파일 선택"}
+            : "Excel / CSV 파일 선택"}
         </span>
         <span className="mt-1 text-sm text-slate-500">
-          .xlsx 또는 .xls 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL}
+          .xlsx · .xls · .csv 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL}
         </span>
         <input
           type="file"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.csv"
           className="sr-only"
           onChange={onFileChange}
           disabled={isProcessingFile}
@@ -79,7 +87,7 @@ export default function FileUploadSection({
 
       {isProcessingFile && (
         <p className="mt-3 text-sm text-blue-700" role="status">
-          Excel 분석 모듈을 불러오고 파일을 처리하는 중입니다.
+          파일을 읽고 거래내역을 분석하는 중입니다.
         </p>
       )}
 
@@ -88,7 +96,7 @@ export default function FileUploadSection({
         role="note"
       >
         <p>
-          업로드한 Excel은 서버로 전송하지 않고 현재 브라우저에서
+          업로드한 파일은 서버로 전송하지 않고 현재 브라우저에서
           분석합니다. 원본 거래내역은 브라우저 저장소에 저장하지 않습니다.
         </p>
         <p className="mt-1">
@@ -113,11 +121,22 @@ export default function FileUploadSection({
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">시트 수</dt>
+              <dt className="text-slate-500">
+                {sourceType === "csv" ? "파일 형식" : "시트 수"}
+              </dt>
               <dd className="mt-1 font-medium text-slate-900">
-                {sheetNames.length}개
+                {sourceType === "csv" ? "CSV" : `${sheetNames.length}개`}
               </dd>
             </div>
+
+            {sourceType === "csv" && textEncoding && (
+              <div>
+                <dt className="text-slate-500">문자 인코딩</dt>
+                <dd className="mt-1 font-medium text-slate-900">
+                  {textEncoding === "utf-8" ? "UTF-8" : "CP949 / EUC-KR"}
+                </dd>
+              </div>
+            )}
 
             {analysisMode && (
               <div>
@@ -131,7 +150,9 @@ export default function FileUploadSection({
             {sheetDetection && (
               <>
                 <div>
-                  <dt className="text-slate-500">분석 시트</dt>
+                  <dt className="text-slate-500">
+                    {sourceType === "csv" ? "분석 대상" : "분석 시트"}
+                  </dt>
                   <dd className="mt-1 font-medium text-slate-900">
                     {sheetDetection.sheetName}
                     {analysisMode === "manual" && (

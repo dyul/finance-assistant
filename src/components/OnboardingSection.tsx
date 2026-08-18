@@ -1,6 +1,8 @@
 const SAMPLE_FILE_NAME = "finance-assistant-sample.xlsx";
+const SAMPLE_CSV_FILE_NAME = "finance-assistant-sample.csv";
 
 export const SAMPLE_EXCEL_PATH = `${import.meta.env.BASE_URL}samples/${SAMPLE_FILE_NAME}`;
+export const SAMPLE_CSV_PATH = `${import.meta.env.BASE_URL}samples/${SAMPLE_CSV_FILE_NAME}`;
 
 const FEATURES = [
   {
@@ -52,7 +54,7 @@ export default function OnboardingSection({
           3개월 현금흐름을 미리 확인하세요
         </h2>
         <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-          통장 거래내역 Excel을 업로드하면 최근 입출금 흐름을 분석하고
+          통장 거래내역 Excel 또는 CSV를 업로드하면 최근 입출금 흐름을 분석하고
           향후 3개월 예상 잔액과 자금 부족 가능성을 확인할 수 있습니다.
         </p>
       </div>
@@ -75,7 +77,7 @@ export default function OnboardingSection({
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
         <h3 className="font-semibold text-slate-900">
-          권장 Excel 형식
+          권장 파일 형식
         </h3>
         <p className="mt-1 text-sm leading-6 text-slate-600">
           거래일과 거래내용을 포함하고, 아래 금액 구조 중 하나를 사용하면
@@ -102,10 +104,10 @@ export default function OnboardingSection({
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <a
-          href="#excel-upload"
+          href="#file-upload"
           className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:w-auto"
         >
-          Excel 업로드하기
+          Excel / CSV 업로드하기
         </a>
         <a
           href={SAMPLE_EXCEL_PATH}
@@ -114,8 +116,15 @@ export default function OnboardingSection({
         >
           샘플 Excel 다운로드
         </a>
+        <a
+          href={SAMPLE_CSV_PATH}
+          download={SAMPLE_CSV_FILE_NAME}
+          className="inline-flex w-full items-center justify-center rounded-lg border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 sm:w-auto"
+        >
+          샘플 CSV 다운로드
+        </a>
         <p className="text-sm text-slate-500 sm:ml-1">
-          Excel을 업로드하거나 샘플 파일로 먼저 테스트해보세요.
+          파일을 업로드하거나 샘플로 먼저 테스트해보세요.
         </p>
       </div>
     </section>

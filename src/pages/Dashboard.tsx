@@ -10,7 +10,7 @@ export default function Dashboard() {
         <div className="screen-only mb-8">
           <h2 className="text-2xl font-bold text-slate-900">Dashboard</h2>
           <p className="mt-1 text-sm text-slate-500">
-            재무 엑셀을 업로드하여 분석을 시작하세요.
+            Excel 또는 CSV 거래내역을 업로드하여 분석을 시작하세요.
           </p>
         </div>
 

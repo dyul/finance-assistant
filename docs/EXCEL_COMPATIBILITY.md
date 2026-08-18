@@ -1,6 +1,6 @@
-# Finance Assistant Excel Compatibility
+# Finance Assistant Excel / CSV Compatibility
 
-> 목적: 자동 테스트 fixture와 실제 사용자 Excel의 분석 결과를 개인정보 없이 구분해 기록합니다.
+> 목적: 자동 테스트 fixture와 실제 사용자 Excel·CSV의 분석 결과를 개인정보 없이 구분해 기록합니다.
 
 ## 기록 원칙
 
@@ -25,6 +25,9 @@
 | 구분 | 형식 | 구조·조건 | 결과 | 근거·비고 |
 | --- | --- | --- | --- | --- |
 | 공개 샘플 | `.xlsx` | 분리 입금/출금, 헤더 1행 | PASS | production 샘플 자동 탐지·분석 확인 |
+| 공개 샘플 | `.csv` UTF-8 | 쉼표 구분, quoted 금액, 헤더 1행 | PASS | Excel 샘플과 합계·잔액·세 시나리오 결과 일치 자동 테스트 |
+| 생성 fixture | `.csv` UTF-8 BOM·CP949 | CRLF/LF, quoted comma·escaped quote | PASS | strict UTF-8와 WHATWG `euc-kr` fallback 테스트 |
+| 생성 fixture | `.csv` | 헤더 31행·100행 | MANUAL REQUIRED | 기존 직접 설정으로 복구, 101행은 지원 범위 밖 |
 | 생성 fixture | `.xlsx` | 분리 입금/출금, 헤더 3행 | PASS | 지연 loader가 시트·헤더·행을 읽는 테스트 |
 | 생성 fixture | `.xls` | 분리 입금/출금, 헤더 3행 | PASS | legacy 형식 지연 loader 테스트 |
 | 생성 fixture | `.xlsx`·`.xls` | 1904 날짜 체계 숫자 셀 | PASS | 두 형식 날짜 파싱 회귀 테스트 |
@@ -34,7 +37,7 @@
 | 행 fixture | 형식 비특정 | 금액+거래구분 | PASS | 탐지·금액 방향 파서 테스트 |
 | 행 fixture | 형식 비특정 | 부호 포함 금액 | PASS | 탐지·금액 부호 파서 테스트 |
 
-## 실제 사용자 Excel 검증
+## 실제 사용자 Excel·CSV 검증
 
 아직 실제 사용자 결과가 없습니다. 첫 Beta 테스트부터 아래 표에 한 행씩 추가합니다.
 
@@ -45,9 +48,9 @@
 
 ## 현재 미검증 영역
 
-- 실제 은행·회계 프로그램이 내보낸 다양한 Excel 양식
+- 실제 은행·회계 프로그램이 내보낸 다양한 Excel·CSV 양식과 브라우저별 CP949/EUC-KR decoding
 - 암호로 보호되거나 암호화된 파일
 - 10MB에 가까운 실제 대형 파일의 기기별 성능
 - 저장된 결과값이 없는 수식 셀
 - 비표준 날짜·금액 표시와 복잡한 병합 헤더
-- 101행 이후 헤더와 `.xlsx`·`.xls` 이외 형식
+- 101행 이후 헤더와 `.xlsx`·`.xls`·쉼표 구분 `.csv` 이외 형식

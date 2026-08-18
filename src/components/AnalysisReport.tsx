@@ -81,7 +81,7 @@ export default function AnalysisReport({
             <dd className="mt-1 font-semibold">{fileName}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">분석 시트명</dt>
+            <dt className="text-slate-500">분석 대상</dt>
             <dd className="mt-1 font-semibold">{sheetName}</dd>
           </div>
           <div>

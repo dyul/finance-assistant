@@ -77,7 +77,7 @@ export default function ScheduledTransactionSection({
         <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
           <p className="leading-6">
             확정 예정 거래와 선택 예상 범위는 파일별로 이 브라우저에 자동
-            저장됩니다. 원본 Excel 거래내역과 분석 결과는 브라우저 저장소에
+            저장됩니다. 원본 파일 거래내역과 분석 결과는 브라우저 저장소에
             저장하지 않습니다.
           </p>
           <button

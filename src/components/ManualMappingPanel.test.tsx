@@ -7,6 +7,7 @@ describe("수동 매핑 패널", () => {
   it("자동 인식 초기값, 헤더 행, 컬럼 후보와 preview를 표시한다", () => {
     const markup = renderToStaticMarkup(
       <ManualMappingPanel
+        sourceType="excel"
         sheetNames={["요약", "Sheet1"]}
         mapping={{
           sheetName: "Sheet1",
@@ -55,6 +56,7 @@ describe("수동 매핑 패널", () => {
   it("실제 시트 범위 안에서 최대 100행까지만 헤더 후보를 표시한다", () => {
     const markup = renderToStaticMarkup(
       <ManualMappingPanel
+        sourceType="excel"
         sheetNames={["Sheet1"]}
         mapping={{
           sheetName: "Sheet1",
@@ -86,6 +88,7 @@ describe("수동 매핑 패널", () => {
   it("필수값과 중복 선택 오류를 패널에 표시한다", () => {
     const markup = renderToStaticMarkup(
       <ManualMappingPanel
+        sourceType="excel"
         sheetNames={["Sheet1"]}
         mapping={{
           sheetName: "Sheet1",
@@ -120,6 +123,7 @@ describe("수동 매핑 패널", () => {
   it("헤더를 찾지 못하면 사용자가 바꿔야 할 설정을 안내한다", () => {
     const markup = renderToStaticMarkup(
       <ManualMappingPanel
+        sourceType="excel"
         sheetNames={["Sheet1"]}
         mapping={{
           sheetName: "Sheet1",
@@ -141,5 +145,37 @@ describe("수동 매핑 패널", () => {
 
     expect(markup).toContain("선택한 행에서 컬럼명을 찾지 못했습니다");
     expect(markup).toContain("헤더 행 번호로 다시 선택");
+  });
+
+  it("CSV에서는 시트 선택처럼 보이지 않도록 분석 대상을 고정한다", () => {
+    const markup = renderToStaticMarkup(
+      <ManualMappingPanel
+        sourceType="csv"
+        sheetNames={["CSV"]}
+        mapping={{
+          sheetName: "CSV",
+          headerRowIndex: 30,
+          dateColumn: "거래일",
+          amountMode: "signed",
+          amountColumn: "금액",
+        }}
+        preview={{
+          columns: ["거래일", "금액"],
+          rows: [],
+          headerRowLimit: 100,
+        }}
+        errors={[]}
+        canReturnToAutomatic={false}
+        onSheetChange={vi.fn()}
+        onHeaderRowChange={vi.fn()}
+        onMappingChange={vi.fn()}
+        onAnalyze={vi.fn()}
+        onReturnToAutomatic={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("분석 대상");
+    expect(markup).toContain("CSV 파일");
+    expect(markup).not.toContain("분석 시트");
   });
 });

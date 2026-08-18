@@ -4,6 +4,7 @@ import {
   type ManualTransactionMapping,
   type ManualWorksheetPreview,
 } from "../services/manualMapping";
+import type { TransactionSourceType } from "../services/transactionDataSource";
 
 interface ColumnSelectProps {
   label: string;
@@ -42,6 +43,7 @@ function ColumnSelect({
 }
 
 interface ManualMappingPanelProps {
+  sourceType: TransactionSourceType;
   sheetNames: string[];
   mapping: ManualTransactionMapping;
   preview: ManualWorksheetPreview;
@@ -55,6 +57,7 @@ interface ManualMappingPanelProps {
 }
 
 export default function ManualMappingPanel({
+  sourceType,
   sheetNames,
   mapping,
   preview,
@@ -96,20 +99,29 @@ export default function ManualMappingPanel({
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <label className="text-sm font-medium text-slate-700">
-          분석 시트
-          <select
-            value={mapping.sheetName}
-            onChange={(event) => onSheetChange(event.target.value)}
-            className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
-          >
-            {sheetNames.map((sheetName) => (
-              <option key={sheetName} value={sheetName}>
-                {sheetName}
-              </option>
-            ))}
-          </select>
-        </label>
+        {sourceType === "csv" ? (
+          <div className="text-sm font-medium text-slate-700">
+            분석 대상
+            <div className="mt-1 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-slate-900">
+              CSV 파일
+            </div>
+          </div>
+        ) : (
+          <label className="text-sm font-medium text-slate-700">
+            분석 시트
+            <select
+              value={mapping.sheetName}
+              onChange={(event) => onSheetChange(event.target.value)}
+              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+            >
+              {sheetNames.map((sheetName) => (
+                <option key={sheetName} value={sheetName}>
+                  {sheetName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="text-sm font-medium text-slate-700">
           헤더 행

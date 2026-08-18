@@ -96,8 +96,15 @@ import {
   type ManualTransactionMapping,
 } from "../services/manualMapping";
 import { loadExcelWorkbook } from "../services/excelWorkbookLoader";
-import { validateExcelUpload } from "../services/excelUploadValidation";
-import type { ExcelWorkbook } from "../services/excelWorkbook";
+import {
+  getUploadFileType,
+  validateExcelUpload,
+} from "../services/excelUploadValidation";
+import {
+  CsvLoadError,
+  loadCsvDataSource,
+} from "../services/csvDataSource";
+import type { TransactionDataSource } from "../services/transactionDataSource";
 import {
   createAnalysisLimitationIssues,
   createBlockingAnalysisIssue,
@@ -299,7 +306,7 @@ export function ReportPrintButton({
 }
 
 export default function UploadArea() {
-  const [workbook, setWorkbook] = useState<ExcelWorkbook | null>(null);
+  const [workbook, setWorkbook] = useState<TransactionDataSource | null>(null);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
   const sheetNames = workbook?.sheetNames ?? [];
@@ -568,7 +575,7 @@ export default function UploadArea() {
   }
 
   function createManualPrefillForLocation(
-    sourceWorkbook: ExcelWorkbook,
+    sourceWorkbook: TransactionDataSource,
     sheetName: string,
     headerRowIndex: number,
   ): ManualTransactionMapping {
@@ -583,7 +590,7 @@ export default function UploadArea() {
   }
 
   function applyWorkbookAnalysis(
-    sourceWorkbook: ExcelWorkbook,
+    sourceWorkbook: TransactionDataSource,
     selectedSheetName: string,
     headerRowIndex: number,
     mappings: ColumnMapping[],
@@ -635,7 +642,7 @@ export default function UploadArea() {
             headerRowIndex,
             score: 0,
             confidence: "high" as const,
-            reasons: ["사용자가 분석 시트와 컬럼을 직접 지정함"],
+            reasons: ["사용자가 분석 대상과 컬럼을 직접 지정함"],
             validTransactionRowCount,
             sampledDataRowCount: objectRows.length,
             coreColumnCount: mappings.filter(
@@ -808,6 +815,7 @@ export default function UploadArea() {
     resetFileInfo();
 
     const validationIssue = validateExcelUpload(file);
+    const uploadFileType = getUploadFileType(file.name);
 
     if (validationIssue) {
       setBlockingIssue(createBlockingAnalysisIssue(validationIssue));
@@ -825,7 +833,10 @@ export default function UploadArea() {
         return;
       }
 
-      const uploadedWorkbook = await loadExcelWorkbook(arrayBuffer);
+      const uploadedWorkbook =
+        uploadFileType === "csv"
+          ? loadCsvDataSource(arrayBuffer)
+          : await loadExcelWorkbook(arrayBuffer);
 
       if (!isLatestRequest()) {
         return;
@@ -866,7 +877,11 @@ export default function UploadArea() {
           ),
         );
         setBlockingIssue(
-          createBlockingAnalysisIssue("transactionSheetNotFound"),
+          createBlockingAnalysisIssue(
+            uploadedWorkbook.sourceType === "csv"
+              ? "csvHeaderNotFound"
+              : "transactionSheetNotFound",
+          ),
         );
         return;
       }
@@ -917,7 +932,14 @@ export default function UploadArea() {
 
       resetFileInfo();
       setBlockingIssue(
-        createBlockingAnalysisIssue("workbookReadFailed"),
+        createBlockingAnalysisIssue(
+          uploadFileType === "csv"
+            ? caughtError instanceof CsvLoadError &&
+              caughtError.code === "decodingFailed"
+              ? "csvDecodingFailed"
+              : "csvReadFailed"
+            : "workbookReadFailed",
+        ),
       );
     } finally {
       if (isLatestRequest()) {
@@ -934,6 +956,8 @@ export default function UploadArea() {
       <FileUploadSection
         fileName={fileName}
         fileSize={fileSize}
+        sourceType={workbook?.sourceType ?? null}
+        textEncoding={workbook?.textEncoding}
         sheetNames={sheetNames}
         sheetDetection={sheetDetection}
         automaticSheetDetection={automaticSheetDetection}
@@ -974,6 +998,7 @@ export default function UploadArea() {
 
       {manualMappingOpen && workbook && manualMapping && (
         <ManualMappingPanel
+          sourceType={workbook.sourceType}
           sheetNames={workbook.sheetNames}
           mapping={manualMapping}
           preview={manualWorksheetPreview}

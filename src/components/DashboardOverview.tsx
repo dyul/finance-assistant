@@ -65,8 +65,8 @@ export default function DashboardOverview({
           </dd>
           <p className="mt-2 text-xs leading-5 text-slate-500">
             {latestBalance === null
-              ? "Excel에 잔액 컬럼이 있으면 현재 잔액과 향후 월말잔액을 계산할 수 있습니다."
-              : "Excel에서 가장 최근 거래에 기록된 잔액입니다."}
+              ? "원본 파일에 잔액 컬럼이 있으면 현재 잔액과 향후 월말잔액을 계산할 수 있습니다."
+              : "원본 파일에서 가장 최근 거래에 기록된 잔액입니다."}
           </p>
         </div>
 

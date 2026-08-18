@@ -5,25 +5,34 @@ export type ExcelUploadValidationIssue =
   | "unsupportedFile"
   | "fileTooLarge";
 
+export type UploadFileType = "excel" | "csv";
+
 interface ExcelUploadFileInfo {
   name: string;
   size: number;
+  type?: string;
 }
 
-const ALLOWED_EXCEL_EXTENSIONS = [".xlsx", ".xls"] as const;
+export function getUploadFileType(fileName: string): UploadFileType | null {
+  const dotIndex = fileName.lastIndexOf(".");
+  const extension =
+    dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : "";
+
+  if (extension === ".csv") {
+    return "csv";
+  }
+
+  if (extension === ".xlsx" || extension === ".xls") {
+    return "excel";
+  }
+
+  return null;
+}
 
 export function validateExcelUpload(
   file: ExcelUploadFileInfo,
 ): ExcelUploadValidationIssue | null {
-  const dotIndex = file.name.lastIndexOf(".");
-  const extension =
-    dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : "";
-
-  if (
-    !ALLOWED_EXCEL_EXTENSIONS.includes(
-      extension as (typeof ALLOWED_EXCEL_EXTENSIONS)[number],
-    )
-  ) {
+  if (getUploadFileType(file.name) === null) {
     return "unsupportedFile";
   }
 

@@ -25,4 +25,30 @@ describe("최신 파일 처리 요청 보호", () => {
       true,
     ]);
   });
+
+  it("먼저 시작한 CSV가 늦게 끝나도 나중 Excel 결과만 반영한다", async () => {
+    const gate = createLatestRequestGate();
+    const appliedFiles: string[] = [];
+    let finishCsv: () => void = () => undefined;
+    const csvRead = new Promise<void>((resolve) => {
+      finishCsv = resolve;
+    });
+    const csvRequestId = gate.begin();
+    const csvTask = csvRead.then(() => {
+      if (gate.isLatest(csvRequestId)) {
+        appliedFiles.push("A.csv");
+      }
+    });
+
+    const excelRequestId = gate.begin();
+
+    if (gate.isLatest(excelRequestId)) {
+      appliedFiles.push("B.xlsx");
+    }
+
+    finishCsv();
+    await csvTask;
+
+    expect(appliedFiles).toEqual(["B.xlsx"]);
+  });
 });

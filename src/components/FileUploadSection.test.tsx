@@ -7,6 +7,7 @@ describe("파일 업로드 영역", () => {
   it("파일 처리 중 입력을 비활성화하고 로딩 상태를 안내한다", () => {
     const markup = renderToStaticMarkup(
       <FileUploadSection
+        sourceType={null}
         fileName=""
         fileSize=""
         sheetNames={[]}
@@ -43,6 +44,7 @@ describe("파일 업로드 영역", () => {
     };
     const markup = renderToStaticMarkup(
       <FileUploadSection
+        sourceType="excel"
         fileName="day16.xlsx"
         fileSize="12.3 KB"
         sheetNames={["요약", "거래내역"]}
@@ -74,5 +76,47 @@ describe("파일 업로드 영역", () => {
     expect(markup).toContain("자동 인식 확실도");
     expect(markup).toContain('class="sr-only"');
     expect(markup).toContain("focus-within:outline-blue-600");
+  });
+
+  it("CSV 입력·형식·인코딩을 시트 개념 없이 안내한다", () => {
+    const detection = {
+      sheetName: "CSV",
+      sheetIndex: 0,
+      headerRowIndex: 0,
+      score: 90,
+      confidence: "high" as const,
+      reasons: ["거래일 컬럼 확인"],
+      validTransactionRowCount: 2,
+      sampledDataRowCount: 2,
+      coreColumnCount: 4,
+      amountStructure: "separate" as const,
+      ambiguous: false,
+    };
+    const markup = renderToStaticMarkup(
+      <FileUploadSection
+        sourceType="csv"
+        textEncoding="euc-kr"
+        fileName="거래내역.csv"
+        fileSize="2.1 KB"
+        sheetNames={["CSV"]}
+        sheetDetection={detection}
+        automaticSheetDetection={detection}
+        analysisMode="automatic"
+        isProcessingFile={false}
+        manualMappingOpen={false}
+        canConfigureManual
+        onFileChange={vi.fn()}
+        onToggleManualMapping={vi.fn()}
+        onReturnToAutomatic={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("Excel / CSV 파일 선택");
+    expect(markup).toContain('accept=".xlsx,.xls,.csv"');
+    expect(markup).toContain("파일 형식");
+    expect(markup).toContain("CP949 / EUC-KR");
+    expect(markup).toContain("분석 대상");
+    expect(markup).not.toContain("시트 수");
+    expect(markup).not.toContain("분석 시트");
   });
 });
