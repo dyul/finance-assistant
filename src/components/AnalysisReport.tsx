@@ -66,7 +66,8 @@ export default function AnalysisReport({
   const hasDataQualityWarning =
     dataQuality.invalidAmountCount > 0 ||
     dataQuality.invalidDateCount > 0 ||
-    dataQuality.directionIssueCount > 0;
+    dataQuality.directionIssueCount > 0 ||
+    dataQuality.futureDatedTransactionCount > 0;
 
   return (
     <article className="print-only analysis-report text-slate-950">
@@ -119,7 +120,7 @@ export default function AnalysisReport({
             }
           />
           <ReportMetric
-            label="전체 거래 건수"
+            label="실적 분석 거래 건수"
             value={`${summary.transactionCount.toLocaleString("ko-KR")}건`}
           />
         </dl>
@@ -133,6 +134,10 @@ export default function AnalysisReport({
           <ReportMetric
             label="전체 거래"
             value={`${dataQuality.totalTransactionCount}건`}
+          />
+          <ReportMetric
+            label="실적 분석 포함"
+            value={`${dataQuality.historicalTransactionCount}건`}
           />
           <ReportMetric
             label="금액 계산 포함"
@@ -154,10 +159,15 @@ export default function AnalysisReport({
             label="방향 오류·충돌"
             value={`${dataQuality.directionIssueCount}건`}
           />
+          <ReportMetric
+            label="미래 날짜 제외"
+            value={`${dataQuality.futureDatedTransactionCount}건`}
+          />
         </dl>
         {hasDataQualityWarning && (
           <p className="report-warning mt-3 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm">
-            일부 거래가 날짜 또는 금액 기반 분석에서 제외되었습니다.
+            일부 거래가 날짜 또는 금액 기반 분석에서 제외되었거나 미래 날짜
+            정책에 따라 실적에서 제외되었습니다.
           </p>
         )}
       </section>

@@ -140,6 +140,21 @@ export function createPartialAnalysisIssues(
 ): AnalysisIssue[] {
   const issues: AnalysisIssue[] = [];
 
+  if (dataQuality.futureDatedTransactionCount > 0) {
+    issues.push({
+      id: "futureDatedTransaction",
+      severity: "warning",
+      title: `미래 날짜 거래 ${dataQuality.futureDatedTransactionCount}건이 실적 분석에서 제외되었습니다.`,
+      description:
+        "거래일이 현재 브라우저의 오늘 날짜보다 뒤인 원본 거래입니다.",
+      impact:
+        "과거 입출금 합계·월별 흐름·반복 거래·수입 추세·최근 잔액·향후 전망 기준에서 제외했습니다.",
+      action:
+        "실제 예정 거래라면 확정 예정 거래에 별도로 추가해주세요. 원본 날짜가 잘못됐다면 수정한 뒤 다시 업로드해주세요.",
+      actionHref: "#transaction-classification",
+    });
+  }
+
   if (amountCounts.invalidAmountCount > 0) {
     issues.push({
       id: "invalidAmount",
@@ -234,7 +249,7 @@ export function createAnalysisLimitationIssues({
       severity: "info",
       title: "향후 잔액 전망을 계산할 수 없습니다.",
       description:
-        "유효한 거래일과 잔액을 함께 가진 거래가 없습니다.",
+        "유효한 거래일과 잔액을 함께 가진 거래가 없어 예상 월말 잔액을 계산할 수 없습니다.",
       impact:
         "입출금 분석은 확인할 수 있지만 향후 예상 월말잔액과 현금 위험 분석은 제공되지 않습니다.",
       action:

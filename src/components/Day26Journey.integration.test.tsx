@@ -13,8 +13,8 @@ import OnboardingSection, { SAMPLE_EXCEL_PATH } from "./OnboardingSection";
 import {
   DataQualitySummary,
   ReportPrintButton,
-  TransactionDateValue,
 } from "./UploadArea";
+import { TransactionDateValue } from "./TransactionClassificationTable";
 import { createActionGuide } from "../services/actionGuide";
 import {
   createBlockingAnalysisIssue,

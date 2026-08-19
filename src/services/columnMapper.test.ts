@@ -16,6 +16,39 @@ describe("columnMapper", () => {
     });
   });
 
+  it("수입/지출을 명시적 방향 컬럼으로 인식한다", () => {
+    expect(mapColumn("수입/지출")).toMatchObject({
+      standardName: "direction",
+      confidence: "high",
+      matchStatus: "mapped",
+    });
+  });
+
+  it("수입자와 지출메모를 금액 또는 방향 컬럼으로 오인식하지 않는다", () => {
+    for (const header of ["수입자", "지출메모"]) {
+      expect(mapColumn(header).standardName).toBe("unknown");
+    }
+  });
+
+  it("내역을 설명으로 사용하고 함께 있는 메모는 설명을 덮어쓰지 않게 제외한다", () => {
+    const mappings = mapColumns(["내역", "메모", "카드", "지불"]);
+
+    expect(mappings.map((mapping) => mapping.standardName)).toEqual([
+      "description",
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
+  });
+
+  it("분류와 하위 분류를 방향이나 금액으로 오인식하지 않는다", () => {
+    for (const header of ["분류", "하위 분류"]) {
+      expect(mapColumn(header).standardName).toBe("category");
+      expect(mapColumn(header).standardName).not.toBe("direction");
+      expect(mapColumn(header).standardName).not.toBe("amount");
+    }
+  });
+
   it.each([
     "거래구분",
     "입출금",

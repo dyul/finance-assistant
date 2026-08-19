@@ -5,9 +5,15 @@ import * as XLSX from "xlsx";
 import {
   DataQualitySummary,
   ReportPrintButton,
+} from "./UploadArea";
+import TransactionClassificationTable, {
   TransactionAmountCells,
   TransactionDateValue,
-} from "./UploadArea";
+} from "./TransactionClassificationTable";
+import {
+  getExpandedTransactionLimit,
+  getVisibleTransactionRows,
+} from "./transactionTablePresentation";
 import { printAnalysisReport } from "../services/reportPresentation";
 import {
   createForecastAnalysis,
@@ -46,12 +52,16 @@ describe("UploadArea 날짜 오류 안내", () => {
       <DataQualitySummary
         summary={{
           totalTransactionCount: 100,
+          historicalTransactionCount: 100,
           amountIncludedCount: 98,
           dateAnalysisIncludedCount: 96,
           validDateCount: 98,
           invalidAmountCount: 2,
           invalidDateCount: 2,
           directionIssueCount: 1,
+          futureDatedTransactionCount: 0,
+          futureDatedIncome: 0,
+          futureDatedExpense: 0,
         }}
       />,
     );
@@ -66,6 +76,33 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("금액 확인 필요");
     expect(markup).toContain("날짜 확인 필요");
     expect(markup).toContain("입출금 구분 확인 필요");
+  });
+
+  it("미래 날짜 제외 건수를 데이터 품질 영역에 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <DataQualitySummary
+        summary={{
+          totalTransactionCount: 823,
+          historicalTransactionCount: 820,
+          amountIncludedCount: 820,
+          dateAnalysisIncludedCount: 820,
+          validDateCount: 823,
+          invalidAmountCount: 0,
+          invalidDateCount: 0,
+          directionIssueCount: 0,
+          futureDatedTransactionCount: 3,
+          futureDatedIncome: 0,
+          futureDatedExpense: 106_670,
+        }}
+      />,
+    );
+
+    expect(markup).toContain("전체 거래");
+    expect(markup).toContain("823건");
+    expect(markup).toContain("실적 분석 포함");
+    expect(markup).toContain("820건");
+    expect(markup).toContain("미래 날짜 제외");
+    expect(markup).toContain("3건");
   });
 
   it("null 날짜를 날짜 확인 필요로 표시한다", () => {
@@ -313,5 +350,109 @@ describe("UploadArea 날짜 오류 안내", () => {
       "unknownDirection",
       "invalidDate",
     ]);
+  });
+});
+
+function createSyntheticTransactions(count: number) {
+  return parseTransactions(
+    Array.from({ length: count }, (_, index) => ({
+      date: `2026-01-${String((index % 28) + 1).padStart(2, "0")}`,
+      description: `합성 거래 ${index + 1}`,
+      amount: 1_000,
+      direction: "수입",
+    })),
+  ).transactions;
+}
+
+describe("대량 거래 자동 분류 표시", () => {
+  it("823건 중 기본 50건만 기존 순서로 표시한다", () => {
+    const transactions = createSyntheticTransactions(823);
+    const markup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+      />,
+    );
+
+    expect(markup).toContain("전체 823건 중 50건 표시");
+    expect(markup.match(/data-transaction-row=/g)).toHaveLength(50);
+    expect(markup).toContain("합성 거래 1");
+    expect(markup).toContain("합성 거래 50");
+    expect(markup).not.toContain("합성 거래 51<");
+    expect(markup).toContain("50건 더 보기");
+    expect(markup).not.toContain(">접기<");
+  });
+
+  it("50건 단위 확장과 접기 상태를 제공한다", () => {
+    const transactions = createSyntheticTransactions(823);
+    const markup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+        initialVisibleCount={100}
+      />,
+    );
+
+    expect(getExpandedTransactionLimit(50, 823)).toBe(100);
+    expect(getExpandedTransactionLimit(800, 823)).toBe(823);
+    expect(markup).toContain("전체 823건 중 100건 표시");
+    expect(markup.match(/data-transaction-row=/g)).toHaveLength(100);
+    expect(markup).toContain("50건 더 보기");
+    expect(markup).toContain("접기");
+  });
+
+  it("50건 이후 오류 거래를 원본 순서를 바꾸지 않고 함께 표시한다", () => {
+    const rows = Array.from({ length: 823 }, (_, index) => ({
+      date: "2026-01-01",
+      description: index === 822 ? "합성 오류 거래" : `합성 정상 ${index + 1}`,
+      amount: index === 822 ? "금액미정" : 1_000,
+      direction: "수입",
+    }));
+    const transactions = parseTransactions(rows).transactions;
+    const visibleRows = getVisibleTransactionRows(
+      transactions,
+      50,
+      "2026-08-19",
+    );
+    const markup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+      />,
+    );
+
+    expect(visibleRows.map((item) => item.sourceIndex)).toEqual([
+      ...Array.from({ length: 50 }, (_, index) => index),
+      822,
+    ]);
+    expect(markup).toContain("전체 823건 중 51건 표시");
+    expect(markup).toContain("합성 오류 거래");
+    expect(markup).toContain("확인이 필요한 거래는");
+  });
+
+  it("전체 823건 렌더링보다 기본 50건 markup을 크게 줄인다", () => {
+    const transactions = createSyntheticTransactions(823);
+    const limitedStart = performance.now();
+    const limitedMarkup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+      />,
+    );
+    const limitedMs = performance.now() - limitedStart;
+    const fullStart = performance.now();
+    const fullMarkup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+        initialVisibleCount={823}
+      />,
+    );
+    const fullMs = performance.now() - fullStart;
+
+    console.info(
+      `[Day36 render] 50 rows=${limitedMs.toFixed(1)}ms, 823 rows=${fullMs.toFixed(1)}ms`,
+    );
+    expect(limitedMarkup.length).toBeLessThan(fullMarkup.length / 5);
   });
 });

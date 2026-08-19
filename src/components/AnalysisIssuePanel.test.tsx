@@ -14,12 +14,16 @@ import { parseTransactions } from "../services/transactionParser";
 
 const normalQuality = {
   totalTransactionCount: 10,
+  historicalTransactionCount: 10,
   amountIncludedCount: 10,
   dateAnalysisIncludedCount: 10,
   validDateCount: 10,
   invalidAmountCount: 0,
   invalidDateCount: 0,
   directionIssueCount: 0,
+  futureDatedTransactionCount: 0,
+  futureDatedIncome: 0,
+  futureDatedExpense: 0,
 };
 
 const noAmountIssues = {
@@ -129,6 +133,30 @@ describe("분석 오류·복구 안내", () => {
     expect(markup).toContain("날짜를 확인할 수 없는 거래 2건");
     expect(markup).toContain("전체 입출금에는 포함");
     expect(markup).toContain("월별 현금흐름·반복거래·최근 잔액·향후 전망에서는 제외");
+  });
+
+  it("미래 날짜 거래를 실적과 Forecast 입력에서 제외하고 예정 거래 안내를 제공한다", () => {
+    const issues = createPartialAnalysisIssues(
+      {
+        ...normalQuality,
+        totalTransactionCount: 13,
+        historicalTransactionCount: 10,
+        amountIncludedCount: 10,
+        dateAnalysisIncludedCount: 10,
+        validDateCount: 13,
+        futureDatedTransactionCount: 3,
+        futureDatedExpense: 106_670,
+      },
+      noAmountIssues,
+    );
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("미래 날짜 거래 3건이 실적 분석에서 제외");
+    expect(markup).toContain("반복 거래·수입 추세·최근 잔액·향후 전망 기준에서 제외");
+    expect(markup).toContain("확정 예정 거래에 별도로 추가");
+    expect(markup).toContain('href="#transaction-classification"');
   });
 
   it("날짜 오류 2건이 있는 4건 fixture에서 전체 금액과 최근 잔액 정책을 함께 지킨다", () => {

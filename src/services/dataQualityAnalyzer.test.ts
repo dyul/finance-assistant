@@ -35,24 +35,32 @@ describe("analyzeDataQuality", () => {
 
     expect(analyzeDataQuality(parsed.transactions)).toEqual({
       totalTransactionCount: 5,
+      historicalTransactionCount: 5,
       amountIncludedCount: 3,
       dateAnalysisIncludedCount: 2,
       validDateCount: 4,
       invalidAmountCount: 1,
       invalidDateCount: 1,
       directionIssueCount: 2,
+      futureDatedTransactionCount: 0,
+      futureDatedIncome: 0,
+      futureDatedExpense: 0,
     });
   });
 
   it("거래가 없으면 모든 건수를 0으로 반환한다", () => {
     expect(analyzeDataQuality([])).toEqual({
       totalTransactionCount: 0,
+      historicalTransactionCount: 0,
       amountIncludedCount: 0,
       dateAnalysisIncludedCount: 0,
       validDateCount: 0,
       invalidAmountCount: 0,
       invalidDateCount: 0,
       directionIssueCount: 0,
+      futureDatedTransactionCount: 0,
+      futureDatedIncome: 0,
+      futureDatedExpense: 0,
     });
   });
 });

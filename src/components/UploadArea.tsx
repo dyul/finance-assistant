@@ -18,6 +18,7 @@ import ScheduledTransactionSection from "./ScheduledTransactionSection";
 import OnboardingSection from "./OnboardingSection";
 import DashboardOverview from "./DashboardOverview";
 import AnalysisIssuePanel from "./AnalysisIssuePanel";
+import TransactionClassificationTable from "./TransactionClassificationTable";
 
 import {
   mapColumns,
@@ -112,6 +113,11 @@ import {
   type AnalysisIssue,
 } from "../services/analysisIssuePresentation";
 import { createLatestRequestGate } from "../services/latestRequestGate";
+import type { NormalizedDate } from "../services/dateNormalizer";
+import {
+  getLocalDateKey,
+  partitionTransactionsByReferenceDate,
+} from "../services/transactionDateScope";
 import {
   formatCurrency,
   formatMonth,
@@ -147,73 +153,6 @@ function getManualAmountStructure(
   return "signedAmount";
 }
 
-function formatOriginalAmountValues(
-  values: Transaction["originalAmountValues"],
-): string {
-  return [
-    `입금 ${values.income ?? "없음"}`,
-    `출금 ${values.expense ?? "없음"}`,
-    `금액 ${values.amount ?? "없음"}`,
-    `구분 ${values.direction ?? "없음"}`,
-  ].join(", ");
-}
-
-export function TransactionDateValue({
-  date,
-}: Pick<Transaction, "date">) {
-  if (date !== null) {
-    return date;
-  }
-
-  return (
-    <span className="font-medium text-amber-700">
-      날짜 확인 필요
-    </span>
-  );
-}
-
-type TransactionAmountCellsProps = Pick<
-  Transaction,
-  "income" | "expense" | "amountStatus" | "originalAmountValues"
->;
-
-export function TransactionAmountCells(
-  item: TransactionAmountCellsProps,
-) {
-  if (item.income === null || item.expense === null) {
-    return (
-      <td
-        className="px-4 py-3 text-right text-amber-700"
-        colSpan={2}
-      >
-        <p className="font-medium">
-          {item.amountStatus === "unknownDirection"
-            ? "입출금 구분 확인 필요"
-            : item.amountStatus === "directionConflict"
-              ? "금액과 입출금 구분 확인 필요"
-              : "금액 확인 필요"}
-        </p>
-
-        <p className="mt-1 text-xs text-amber-600">
-          원본: {formatOriginalAmountValues(item.originalAmountValues)}
-        </p>
-      </td>
-    );
-  }
-
-  return (
-    <>
-      <td className="px-4 py-3 text-right text-emerald-700">
-        {item.income > 0 ? formatCurrency(item.income) : "-"}
-      </td>
-
-      <td className="px-4 py-3 text-right text-red-700">
-        {item.expense > 0 ? formatCurrency(item.expense) : "-"}
-      </td>
-    </>
-  );
-}
-
 export function DataQualitySummary({
   summary,
 }: {
@@ -222,14 +161,17 @@ export function DataQualitySummary({
   const hasWarning =
     summary.invalidAmountCount > 0 ||
     summary.invalidDateCount > 0 ||
-    summary.directionIssueCount > 0;
+    summary.directionIssueCount > 0 ||
+    summary.futureDatedTransactionCount > 0;
   const metrics = [
     ["전체 거래", summary.totalTransactionCount],
+    ["실적 분석 포함", summary.historicalTransactionCount],
     ["금액 계산 포함", summary.amountIncludedCount],
     ["날짜 기반 분석 포함", summary.dateAnalysisIncludedCount],
     ["금액 확인 필요", summary.invalidAmountCount],
     ["날짜 확인 필요", summary.invalidDateCount],
     ["입출금 구분 확인 필요", summary.directionIssueCount],
+    ["미래 날짜 제외", summary.futureDatedTransactionCount],
   ] as const;
 
   return (
@@ -256,7 +198,8 @@ export function DataQualitySummary({
           const isErrorMetric =
             label === "금액 확인 필요" ||
             label === "날짜 확인 필요" ||
-            label === "입출금 구분 확인 필요";
+            label === "입출금 구분 확인 필요" ||
+            label === "미래 날짜 제외";
 
           return (
             <div
@@ -322,6 +265,11 @@ export default function UploadArea() {
   const [manualMappingErrors, setManualMappingErrors] = useState<string[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [analysisTransactions, setAnalysisTransactions] = useState<
+    Transaction[]
+  >([]);
+  const [analysisReferenceDate, setAnalysisReferenceDate] =
+    useState<NormalizedDate>(() => getLocalDateKey());
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
 
   const [monthlySummaries, setMonthlySummaries] = useState<
@@ -364,16 +312,19 @@ export default function UploadArea() {
   );
 
   const recurringTransactions = useMemo(
-    () => detectRecurringTransactions(transactions),
-    [transactions],
+    () => detectRecurringTransactions(analysisTransactions),
+    [analysisTransactions],
   );
   const latestBalance = useMemo(
-    () => getLatestBalance(transactions),
-    [transactions],
+    () => getLatestBalance(analysisTransactions),
+    [analysisTransactions],
   );
   const dataQualitySummary = useMemo(
-    () => analyzeDataQuality(transactions),
-    [transactions],
+    () =>
+      analyzeDataQuality(transactions, {
+        referenceDate: analysisReferenceDate,
+      }),
+    [analysisReferenceDate, transactions],
   );
   const forecastMonths = useMemo(
     () =>
@@ -475,6 +426,7 @@ export default function UploadArea() {
     setAnalysisMode(null);
     setColumnMappings([]);
     setTransactions([]);
+    setAnalysisTransactions([]);
     setSummary(null);
     setMonthlySummaries([]);
     setCategorySummaries([]);
@@ -501,6 +453,7 @@ export default function UploadArea() {
     setManualMappingErrors([]);
     setColumnMappings([]);
     setTransactions([]);
+    setAnalysisTransactions([]);
     setSummary(null);
     setMonthlySummaries([]);
     setCategorySummaries([]);
@@ -608,8 +561,13 @@ export default function UploadArea() {
     const parsedResult = parseTransactions(standardizedRows, {
       date1904: sourceWorkbook.date1904,
     });
-    const validTransactionRowCount = countValidManualTransactions(
+    const referenceDate = getLocalDateKey();
+    const transactionDateScope = partitionTransactionsByReferenceDate(
       parsedResult.transactions,
+      referenceDate,
+    );
+    const validTransactionRowCount = countValidManualTransactions(
+      transactionDateScope.historicalTransactions,
     );
 
     if (validTransactionRowCount === 0) {
@@ -617,16 +575,18 @@ export default function UploadArea() {
     }
 
     const financialSummary = calculateFinancialSummary(
-      parsedResult.transactions,
+      transactionDateScope.historicalTransactions,
     );
     const monthlyResults = aggregateMonthly(
-      parsedResult.transactions,
+      transactionDateScope.historicalTransactions,
     );
     const categoryResults = aggregateExpensesByCategory(
-      parsedResult.transactions,
+      transactionDateScope.historicalTransactions,
     );
     const monthlyCategoryResults =
-      aggregateMonthlyExpensesByCategory(parsedResult.transactions);
+      aggregateMonthlyExpensesByCategory(
+        transactionDateScope.historicalTransactions,
+      );
     const generatedInsights = generateFinancialInsights(
       monthlyResults,
       categoryResults,
@@ -657,6 +617,8 @@ export default function UploadArea() {
     setSheetDetection(activeDetection);
     setColumnMappings(mappings);
     setTransactions(parsedResult.transactions);
+    setAnalysisTransactions(transactionDateScope.historicalTransactions);
+    setAnalysisReferenceDate(referenceDate);
     setSummary(financialSummary);
     setMonthlySummaries(monthlyResults);
     setCategorySummaries(categoryResults);
@@ -1046,8 +1008,8 @@ export default function UploadArea() {
               1. 현재 상태
             </h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              업로드한 기간 전체의 입출금 합계입니다. 순현금흐름은 들어온
-              돈에서 나간 돈을 뺀 금액입니다.
+              오늘까지의 실적 분석에 포함된 입출금 합계입니다. 순현금흐름은
+              들어온 돈에서 나간 돈을 뺀 금액입니다.
             </p>
           </div>
 
@@ -1081,7 +1043,7 @@ export default function UploadArea() {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-500">거래 건수</p>
+              <p className="text-sm text-slate-500">실적 분석 거래</p>
               <p className="mt-2 text-xl font-bold text-slate-900">
                 {summary.transactionCount.toLocaleString("ko-KR")}건
               </p>
@@ -1400,60 +1362,11 @@ export default function UploadArea() {
       )}
 
       {transactions.length > 0 && (
-        <div id="transaction-classification" className="mt-6 scroll-mt-4">
-          <h3 className="mb-3 font-semibold text-slate-900">
-            거래 자동 분류 결과
-          </h3>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[750px] text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 text-left">거래일</th>
-                  <th className="px-4 py-3 text-left">적요</th>
-                  <th className="px-4 py-3 text-left">분류</th>
-                  <th className="px-4 py-3 text-right">입금</th>
-                  <th className="px-4 py-3 text-right">출금</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {transactions.map((item, index) => (
-                  <tr
-                    key={`${item.date}-${item.description}-${index}`}
-                    className="border-t border-slate-200"
-                  >
-                    <td className="px-4 py-3">
-                      <TransactionDateValue date={item.date} />
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.description}
-
-                      {item.amountStatus === "columnConflict" && (
-                        <p className="mt-1 text-xs font-medium text-amber-700">
-                          단일 금액과 불일치 — 분리 컬럼 적용
-                        </p>
-                      )}
-
-                      {item.amountStatus === "directionOverride" && (
-                        <p className="mt-1 text-xs font-medium text-amber-700">
-                          금액 부호와 불일치 — 입출금 구분 적용
-                        </p>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.categoryName}
-                    </td>
-
-                    <TransactionAmountCells {...item} />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TransactionClassificationTable
+          key={fileName}
+          transactions={transactions}
+          referenceDate={analysisReferenceDate}
+        />
       )}
 
       {columnMappings.length > 0 && (

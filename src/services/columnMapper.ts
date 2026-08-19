@@ -36,6 +36,7 @@ const COLUMN_KEYWORDS: Record<
 
   description: [
     "적요",
+    "내역",
     "내용",
     "거래내용",
     "거래처",
@@ -73,6 +74,7 @@ const COLUMN_KEYWORDS: Record<
   amount: ["금액", "거래금액", "합계", "amount", "total"],
 
   direction: [
+    "수입/지출",
     "거래구분",
     "입출금",
     "입출금구분",
@@ -313,7 +315,26 @@ export function mapColumns(
   columnNames: string[],
   rows: Record<string, unknown>[] = [],
 ): ColumnMapping[] {
-  const mappings = columnNames.map(mapColumn);
+  const initialMappings = columnNames.map(mapColumn);
+  const hasPrimaryDescription = initialMappings.some(
+    (mapping) =>
+      normalizeColumnName(mapping.originalName) === "내역" &&
+      mapping.standardName === "description",
+  );
+  const mappings = hasPrimaryDescription
+    ? initialMappings.map((mapping) =>
+        normalizeColumnName(mapping.originalName) === "메모" &&
+        mapping.standardName === "description"
+          ? {
+              ...mapping,
+              standardName: "unknown" as const,
+              displayName: DISPLAY_NAMES.unknown,
+              confidence: "low" as const,
+              matchStatus: "unknown" as const,
+            }
+          : mapping,
+      )
+    : initialMappings;
   const hasAmountColumn = mappings.some(
     (mapping) => mapping.standardName === "amount",
   );

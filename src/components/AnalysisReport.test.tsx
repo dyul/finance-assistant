@@ -114,12 +114,16 @@ function renderReport(
       latestBalance={-497000}
       dataQuality={{
         totalTransactionCount: 10,
+        historicalTransactionCount: 10,
         amountIncludedCount: 10,
         dateAnalysisIncludedCount: 10 - invalidDateCount,
         validDateCount: 10 - invalidDateCount,
         invalidAmountCount: 0,
         invalidDateCount,
         directionIssueCount: 0,
+        futureDatedTransactionCount: 0,
+        futureDatedIncome: 0,
+        futureDatedExpense: 0,
       }}
       monthlySummaries={[
         {
@@ -279,12 +283,16 @@ describe("AnalysisReport", () => {
         latestBalance={null}
         dataQuality={{
           totalTransactionCount: 0,
+          historicalTransactionCount: 0,
           amountIncludedCount: 0,
           dateAnalysisIncludedCount: 0,
           validDateCount: 0,
           invalidAmountCount: 0,
           invalidDateCount: 0,
           directionIssueCount: 0,
+          futureDatedTransactionCount: 0,
+          futureDatedIncome: 0,
+          futureDatedExpense: 0,
         }}
         monthlySummaries={[]}
         analysis={analysis}
