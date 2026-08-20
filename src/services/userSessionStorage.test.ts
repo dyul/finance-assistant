@@ -285,6 +285,7 @@ describe("사용자 Forecast 설정 저장", () => {
       financialSummary: { totalIncome: number };
       cashRisk: { requiredCashBuffer: number };
       actionGuide: Array<{ action: string }>;
+      manualCurrentBalance: number;
     } = {
       selectedScenario: "base",
       scheduledTransactions: [unsafeScheduledTransaction],
@@ -294,6 +295,7 @@ describe("사용자 Forecast 설정 저장", () => {
       financialSummary: { totalIncome: 9_999_999 },
       cashRisk: { requiredCashBuffer: 777_777 },
       actionGuide: [{ action: "저장하면 안 되는 추천 행동" }],
+      manualCurrentBalance: 3_000_000,
     };
 
     saveUserSession(
@@ -320,6 +322,8 @@ describe("사용자 Forecast 설정 저장", () => {
     expect(payload).not.toContain("requiredCashBuffer");
     expect(payload).not.toContain("actionGuide");
     expect(payload).not.toContain("저장하면 안 되는 추천 행동");
+    expect(payload).not.toContain("manualCurrentBalance");
+    expect(payload).not.toContain("3000000");
     expect(payload).toContain("scheduledTransactions");
     expect(payload).toContain("거래처 입금");
   });

@@ -111,7 +111,9 @@ function renderReport(
         largestIncome: 1000000,
         largestExpense: 2000000,
       }}
-      latestBalance={-497000}
+      fileLatestBalance={-497000}
+      forecastStartingBalance={-497000}
+      forecastStartingBalanceSource="file"
       dataQuality={{
         totalTransactionCount: 10,
         historicalTransactionCount: 10,
@@ -280,7 +282,9 @@ describe("AnalysisReport", () => {
           largestIncome: 0,
           largestExpense: 0,
         }}
-        latestBalance={null}
+        fileLatestBalance={null}
+        forecastStartingBalance={null}
+        forecastStartingBalanceSource={null}
         dataQuality={{
           totalTransactionCount: 0,
           historicalTransactionCount: 0,
@@ -310,5 +314,54 @@ describe("AnalysisReport", () => {
     );
     expect(markup).not.toContain("<img src=x");
     expect(markup).not.toContain("<script>alert");
+  });
+
+  it("직접 입력 잔액의 출처를 PDF 리포트에 명확히 표시한다", () => {
+    const analyses = createScenarioForecastAnalyses(
+      [recurring({ description: "합성 고정비", averageAmount: 300_000 })],
+      3_000_000,
+    );
+    const markup = renderToStaticMarkup(
+      <AnalysisReport
+        fileName="synthetic.csv"
+        sheetName="CSV"
+        generatedAt={new Date(2026, 7, 20)}
+        summary={{
+          totalIncome: 0,
+          totalExpense: 0,
+          netCashFlow: 0,
+          transactionCount: 0,
+          validAmountTransactionCount: 0,
+          averageTransactionAmount: 0,
+          largestIncome: 0,
+          largestExpense: 0,
+        }}
+        fileLatestBalance={null}
+        forecastStartingBalance={3_000_000}
+        forecastStartingBalanceSource="manual"
+        dataQuality={{
+          totalTransactionCount: 0,
+          historicalTransactionCount: 0,
+          amountIncludedCount: 0,
+          dateAnalysisIncludedCount: 0,
+          validDateCount: 0,
+          invalidAmountCount: 0,
+          invalidDateCount: 0,
+          directionIssueCount: 0,
+          futureDatedTransactionCount: 0,
+          futureDatedIncome: 0,
+          futureDatedExpense: 0,
+        }}
+        monthlySummaries={[]}
+        analysis={analyses.base}
+        selectedScenario="base"
+        actionGuideItems={[]}
+        categorySummaries={[]}
+      />,
+    );
+
+    expect(markup).toContain("전망 시작 잔액 (직접 입력)");
+    expect(markup).toContain("3,000,000원");
+    expect(markup).toContain("과거 입출금 분석에는 반영되지 않았습니다");
   });
 });

@@ -132,6 +132,7 @@ function renderScenario(
       selectedScenario={scenario}
       onScenarioChange={() => undefined}
       actionGuideItems={actionGuideItems}
+      startingBalanceSource="file"
     />,
   );
 }
@@ -218,6 +219,28 @@ describe("ForecastSection UI", () => {
     expect(markup).toContain("예정 출금");
   });
 
+  it("직접 입력 잔액을 Forecast 계산 근거로 표시한다", () => {
+    const analysis = createAnalyses().base;
+    const markup = renderToStaticMarkup(
+      <ForecastSection
+        analysis={analysis}
+        summary={createForecastSummary(
+          analysis.forecasts,
+          analysis.cashRisk,
+        )}
+        selectedScenario="base"
+        onScenarioChange={() => undefined}
+        actionGuideItems={[]}
+        startingBalanceSource="manual"
+      />,
+    );
+
+    expect(markup).toContain(
+      "전망 시작 잔액은 사용자가 직접 입력한 현재 잔액",
+    );
+    expect(markup).toContain('role="status"');
+  });
+
   it("예정거래 추가 후 요약이 변경되고 삭제 후 원복된다", () => {
     const originalAnalyses = createAnalyses();
     const scheduledAnalyses = createAnalyses([
@@ -288,6 +311,7 @@ describe("ForecastSection UI", () => {
         selectedScenario="base"
         onScenarioChange={() => undefined}
         actionGuideItems={[]}
+        startingBalanceSource={null}
       />,
     );
 

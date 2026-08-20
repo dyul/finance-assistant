@@ -17,6 +17,7 @@ import {
   FORECAST_SCENARIO_CONTENT,
   FORECAST_SCENARIO_SPREAD_DESCRIPTION,
 } from "./forecastScenarioContent";
+import type { ForecastStartingBalanceSource } from "../services/manualBalance";
 
 const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
   "conservative",
@@ -83,6 +84,7 @@ interface ForecastSectionProps extends ForecastScenarioTabsProps {
   analysis: ForecastAnalysis;
   summary: ForecastSummary;
   actionGuideItems: ActionGuideItem[];
+  startingBalanceSource: ForecastStartingBalanceSource;
 }
 
 function getRiskLabel(level: NonNullable<ForecastAnalysis["cashRisk"]>["level"]): string {
@@ -212,6 +214,7 @@ export default function ForecastSection({
   selectedScenario,
   onScenarioChange,
   actionGuideItems,
+  startingBalanceSource,
 }: ForecastSectionProps) {
   const { forecasts, cashRisk } = analysis;
 
@@ -252,6 +255,11 @@ export default function ForecastSection({
             아래 예상 범위를 바꾸면 관련 숫자와 자금 부족 가능성이 함께
             바뀝니다.
           </p>
+          {startingBalanceSource === "manual" && (
+            <p className="mt-2 text-sm font-medium text-blue-700" role="status">
+              전망 시작 잔액은 사용자가 직접 입력한 현재 잔액입니다.
+            </p>
+          )}
         </div>
 
         <ForecastScenarioTabs

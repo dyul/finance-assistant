@@ -191,6 +191,7 @@ describe("Day 26 실제 사용자 Journey 통합", () => {
           selectedScenario={scenario}
           onScenarioChange={vi.fn()}
           actionGuideItems={actions}
+          startingBalanceSource="file"
         />,
       );
 
@@ -285,7 +286,9 @@ describe("Day 26 실제 사용자 Journey 통합", () => {
         sheetName={result.detection.sheetName}
         generatedAt={new Date(2026, 7, 10)}
         summary={result.summary}
-        latestBalance={result.latestBalance}
+        fileLatestBalance={result.latestBalance}
+        forecastStartingBalance={result.latestBalance}
+        forecastStartingBalanceSource="file"
         dataQuality={result.dataQuality}
         monthlySummaries={result.monthlySummaries}
         analysis={selectedAnalysis}
@@ -307,6 +310,7 @@ describe("Day 26 실제 사용자 Journey 통합", () => {
         selectedScenario="optimistic"
         onScenarioChange={vi.fn()}
         actionGuideItems={actionGuide}
+        startingBalanceSource="file"
       />,
     );
 

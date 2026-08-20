@@ -228,7 +228,8 @@ describe("분석 오류·복구 안내", () => {
 
   it("최근 잔액 없음과 localStorage 실패를 blocking이 아닌 기능 제한으로 표시한다", () => {
     const issues = createAnalysisLimitationIssues({
-      latestBalanceAvailable: false,
+      fileLatestBalanceAvailable: false,
+      manualCurrentBalanceApplied: false,
       recurringTransactionCount: 0,
       storageAvailable: false,
     });
@@ -250,7 +251,8 @@ describe("분석 오류·복구 안내", () => {
     ).toEqual([]);
     expect(
       createAnalysisLimitationIssues({
-        latestBalanceAvailable: true,
+        fileLatestBalanceAvailable: true,
+        manualCurrentBalanceApplied: false,
         recurringTransactionCount: 3,
         storageAvailable: true,
       }),
@@ -258,5 +260,21 @@ describe("분석 오류·복구 안내", () => {
     expect(
       renderToStaticMarkup(<AnalysisIssuePanel issues={[]} />),
     ).toBe("");
+  });
+
+  it("직접 잔액 적용 후 원본 제한과 Forecast 해소 상태를 구분한다", () => {
+    const issues = createAnalysisLimitationIssues({
+      fileLatestBalanceAvailable: false,
+      manualCurrentBalanceApplied: true,
+      recurringTransactionCount: 2,
+      storageAvailable: true,
+    });
+    const markup = renderToStaticMarkup(
+      <AnalysisIssuePanel issues={issues} />,
+    );
+
+    expect(markup).toContain("원본 파일에 잔액 정보가 없습니다");
+    expect(markup).toContain("직접 입력한 현재 잔액으로 향후 전망");
+    expect(markup).not.toContain("향후 잔액 전망을 계산할 수 없습니다");
   });
 });

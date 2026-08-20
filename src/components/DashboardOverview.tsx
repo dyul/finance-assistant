@@ -7,9 +7,11 @@ import {
   formatSignedCurrency,
 } from "../utils/formatters";
 import { FORECAST_SCENARIO_CONTENT } from "./forecastScenarioContent";
+import type { ForecastStartingBalanceSource } from "../services/manualBalance";
 
 interface DashboardOverviewProps {
-  latestBalance: number | null;
+  currentBalance: number | null;
+  startingBalanceSource: ForecastStartingBalanceSource;
   latestMonthlySummary: MonthlySummary | null;
   forecastSummary: ForecastSummary;
   selectedScenario: ForecastScenario;
@@ -24,7 +26,8 @@ function getAmountStyle(value: number | null): string {
 }
 
 export default function DashboardOverview({
-  latestBalance,
+  currentBalance,
+  startingBalanceSource,
   latestMonthlySummary,
   forecastSummary,
   selectedScenario,
@@ -54,19 +57,27 @@ export default function DashboardOverview({
 
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <dt className="text-sm font-medium text-slate-600">현재 잔액</dt>
+          <dt className="text-sm font-medium text-slate-600">
+            {startingBalanceSource === "file"
+              ? "최근 거래 기준 잔액"
+              : startingBalanceSource === "manual"
+                ? "현재 잔액 (직접 입력)"
+                : "현재 잔액"}
+          </dt>
           <dd
-            className={`mt-2 break-words text-xl font-bold tabular-nums ${getAmountStyle(latestBalance)}`}
+            className={`mt-2 break-words text-xl font-bold tabular-nums ${getAmountStyle(currentBalance)}`}
             data-overview="current-balance"
           >
-            {latestBalance === null
+            {currentBalance === null
               ? "확인할 수 없음"
-              : formatCurrency(latestBalance)}
+              : formatCurrency(currentBalance)}
           </dd>
           <p className="mt-2 text-xs leading-5 text-slate-500">
-            {latestBalance === null
-              ? "원본 파일에 잔액 컬럼이 있으면 현재 잔액과 향후 월말잔액을 계산할 수 있습니다."
-              : "원본 파일에서 가장 최근 거래에 기록된 잔액입니다."}
+            {startingBalanceSource === "file"
+              ? "원본 파일에서 가장 최근 거래에 기록된 잔액입니다."
+              : startingBalanceSource === "manual"
+                ? "사용자가 입력한 현재 사용 가능 잔액이며 Forecast 시작 잔액으로만 사용합니다."
+                : "원본 잔액이 없으면 현재 잔액을 직접 입력해 향후 전망을 계산할 수 있습니다."}
           </p>
         </div>
 

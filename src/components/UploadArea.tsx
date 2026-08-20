@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useReducer,
   useRef,
   useState,
   type ChangeEvent,
@@ -20,6 +21,7 @@ import DashboardOverview from "./DashboardOverview";
 import AnalysisIssuePanel from "./AnalysisIssuePanel";
 import TransactionClassificationTable from "./TransactionClassificationTable";
 import RecurringTransactionsTable from "./RecurringTransactionsTable";
+import ManualBalanceSection from "./ManualBalanceSection";
 
 import {
   mapColumns,
@@ -119,6 +121,10 @@ import {
   getLocalDateKey,
   partitionTransactionsByReferenceDate,
 } from "../services/transactionDateScope";
+import {
+  manualBalanceSessionReducer,
+  resolveForecastStartingBalance,
+} from "../services/manualBalance";
 import {
   formatCurrency,
   formatMonth,
@@ -291,6 +297,10 @@ export default function UploadArea() {
   >([]);
   const [selectedScenario, setSelectedScenario] =
     useState<ForecastScenario>(DEFAULT_FORECAST_SCENARIO);
+  const [manualCurrentBalance, dispatchManualBalance] = useReducer(
+    manualBalanceSessionReducer,
+    null,
+  );
   const [sessionStorageAvailable, setSessionStorageAvailable] =
     useState(true);
   const manualMappingSheetName = manualMapping?.sheetName;
@@ -316,9 +326,17 @@ export default function UploadArea() {
     () => detectRecurringTransactions(analysisTransactions),
     [analysisTransactions],
   );
-  const latestBalance = useMemo(
+  const fileLatestBalance = useMemo(
     () => getLatestBalance(analysisTransactions),
     [analysisTransactions],
+  );
+  const forecastStartingBalance = useMemo(
+    () =>
+      resolveForecastStartingBalance(
+        fileLatestBalance,
+        manualCurrentBalance,
+      ),
+    [fileLatestBalance, manualCurrentBalance],
   );
   const dataQualitySummary = useMemo(
     () =>
@@ -331,9 +349,9 @@ export default function UploadArea() {
     () =>
       createScenarioForecastAnalyses(
         recurringTransactions,
-        latestBalance,
+        forecastStartingBalance.value,
       ).base.forecasts.map((forecast) => forecast.month),
-    [recurringTransactions, latestBalance],
+    [recurringTransactions, forecastStartingBalance.value],
   );
   const scheduledTransactionForecastScope = useMemo(
     () =>
@@ -351,12 +369,12 @@ export default function UploadArea() {
     () =>
       createScenarioForecastAnalyses(
         recurringTransactions,
-        latestBalance,
+        forecastStartingBalance.value,
         applicableScheduledTransactions,
       ),
     [
       recurringTransactions,
-      latestBalance,
+      forecastStartingBalance.value,
       applicableScheduledTransactions,
     ],
   );
@@ -411,12 +429,14 @@ export default function UploadArea() {
   const limitationIssues = useMemo(
     () =>
       createAnalysisLimitationIssues({
-        latestBalanceAvailable: latestBalance !== null,
+        fileLatestBalanceAvailable: fileLatestBalance !== null,
+        manualCurrentBalanceApplied: manualCurrentBalance !== null,
         recurringTransactionCount: recurringTransactions.length,
         storageAvailable: sessionStorageAvailable,
       }),
     [
-      latestBalance,
+      fileLatestBalance,
+      manualCurrentBalance,
       recurringTransactions.length,
       sessionStorageAvailable,
     ],
@@ -462,6 +482,7 @@ export default function UploadArea() {
     setInsights([]);
     setScheduledTransactions([]);
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
+    dispatchManualBalance({ type: "newFile" });
     setSessionStorageAvailable(true);
     setAmountWarningCounts({
       invalidAmountCount: 0,
@@ -525,6 +546,7 @@ export default function UploadArea() {
 
     setScheduledTransactions([]);
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
+    dispatchManualBalance({ type: "fileSettingsReset" });
     setSessionStorageAvailable(cleared);
   }
 
@@ -688,6 +710,7 @@ export default function UploadArea() {
         mappings,
         "manual",
       );
+      dispatchManualBalance({ type: "sameFileReanalyzed" });
       setManualMappingErrors([]);
       setBlockingIssue(null);
     } catch (caughtError) {
@@ -733,6 +756,7 @@ export default function UploadArea() {
         automaticSheetDetection,
         rows,
       );
+      dispatchManualBalance({ type: "sameFileReanalyzed" });
       setManualMapping(
         createManualMappingPrefill(
           automaticSheetDetection.sheetName,
@@ -995,7 +1019,8 @@ export default function UploadArea() {
 
       {summary && (
         <DashboardOverview
-          latestBalance={latestBalance}
+          currentBalance={forecastStartingBalance.value}
+          startingBalanceSource={forecastStartingBalance.source}
           latestMonthlySummary={monthlySummaries.at(-1) ?? null}
           forecastSummary={selectedForecastSummary}
           selectedScenario={selectedScenario}
@@ -1051,21 +1076,29 @@ export default function UploadArea() {
             </div>
           </div>
 
-          {latestBalance !== null && (
+          {forecastStartingBalance.value !== null && (
             <div className="mt-4 rounded-lg bg-slate-50 p-4">
               <p className="text-sm text-slate-500">
-                최근 거래 기준 잔액
+                {forecastStartingBalance.source === "manual"
+                  ? "현재 잔액 (직접 입력)"
+                  : "최근 거래 기준 잔액"}
               </p>
 
               <p
                 className={`mt-1 text-lg font-bold ${
-                  latestBalance >= 0
+                  forecastStartingBalance.value >= 0
                     ? "text-emerald-700"
                     : "text-red-700"
                 }`}
               >
-                {formatCurrency(latestBalance)}
+                {formatCurrency(forecastStartingBalance.value)}
               </p>
+              {forecastStartingBalance.source === "manual" && (
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Forecast 시작 잔액으로만 사용하며 과거 실적에는 반영하지
+                  않습니다.
+                </p>
+              )}
             </div>
           )}
 
@@ -1074,6 +1107,17 @@ export default function UploadArea() {
 
       {summary && limitationIssues.length > 0 && (
         <AnalysisIssuePanel issues={limitationIssues} />
+      )}
+
+      {summary && (
+        <ManualBalanceSection
+          fileLatestBalance={fileLatestBalance}
+          manualCurrentBalance={manualCurrentBalance}
+          onApply={(balance) =>
+            dispatchManualBalance({ type: "apply", balance })
+          }
+          onClear={() => dispatchManualBalance({ type: "clear" })}
+        />
       )}
 
       {forecasts.length > 0 && (
@@ -1095,6 +1139,7 @@ export default function UploadArea() {
           selectedScenario={selectedScenario}
           onScenarioChange={handleScenarioChange}
           actionGuideItems={actionGuideItems}
+          startingBalanceSource={forecastStartingBalance.source}
         />
       )}
 
@@ -1381,7 +1426,9 @@ export default function UploadArea() {
           sheetName={sheetDetection.sheetName}
           generatedAt={new Date()}
           summary={summary}
-          latestBalance={latestBalance}
+          fileLatestBalance={fileLatestBalance}
+          forecastStartingBalance={forecastStartingBalance.value}
+          forecastStartingBalanceSource={forecastStartingBalance.source}
           dataQuality={dataQualitySummary}
           monthlySummaries={monthlySummaries}
           analysis={selectedAnalysis}

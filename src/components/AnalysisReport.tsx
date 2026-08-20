@@ -6,6 +6,7 @@ import type { ForecastAnalysis } from "../services/forecastEngine";
 import { createForecastSummary } from "../services/forecastPresentation";
 import type { ForecastScenario } from "../services/forecastScenario";
 import type { MonthlySummary } from "../services/monthlyAggregator";
+import type { ForecastStartingBalanceSource } from "../services/manualBalance";
 import {
   formatReportCurrency,
   formatReportDate,
@@ -21,7 +22,9 @@ export interface AnalysisReportProps {
   sheetName: string;
   generatedAt: Date;
   summary: FinancialSummary;
-  latestBalance: number | null;
+  fileLatestBalance: number | null;
+  forecastStartingBalance: number | null;
+  forecastStartingBalanceSource: ForecastStartingBalanceSource;
   dataQuality: DataQualitySummary;
   monthlySummaries: MonthlySummary[];
   analysis: ForecastAnalysis;
@@ -50,7 +53,9 @@ export default function AnalysisReport({
   sheetName,
   generatedAt,
   summary,
-  latestBalance,
+  fileLatestBalance,
+  forecastStartingBalance,
+  forecastStartingBalanceSource,
   dataQuality,
   monthlySummaries,
   analysis,
@@ -112,11 +117,19 @@ export default function AnalysisReport({
             value={formatReportSignedCurrency(summary.netCashFlow)}
           />
           <ReportMetric
-            label="최근 거래 기준 잔액"
+            label={
+              forecastStartingBalanceSource === "manual"
+                ? "전망 시작 잔액 (직접 입력)"
+                : "최근 거래 기준 잔액"
+            }
             value={
-              latestBalance === null
-                ? "해당 없음"
-                : formatReportCurrency(latestBalance)
+              forecastStartingBalanceSource === "manual"
+                ? forecastStartingBalance === null
+                  ? "해당 없음"
+                  : formatReportCurrency(forecastStartingBalance)
+                : fileLatestBalance === null
+                  ? "해당 없음"
+                  : formatReportCurrency(fileLatestBalance)
             }
           />
           <ReportMetric
@@ -389,6 +402,12 @@ export default function AnalysisReport({
             데이터 오류로 제외된 거래가 있으면 분석 결과와 전체 합계가
             달라질 수 있습니다.
           </li>
+          {forecastStartingBalanceSource === "manual" && (
+            <li>
+              전망 시작 잔액은 사용자가 직접 입력한 값이며 과거 입출금
+              분석에는 반영되지 않았습니다.
+            </li>
+          )}
         </ul>
       </section>
     </article>

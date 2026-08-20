@@ -233,29 +233,45 @@ export function createPartialAnalysisIssues(
 }
 
 export function createAnalysisLimitationIssues({
-  latestBalanceAvailable,
+  fileLatestBalanceAvailable,
+  manualCurrentBalanceApplied,
   recurringTransactionCount,
   storageAvailable,
 }: {
-  latestBalanceAvailable: boolean;
+  fileLatestBalanceAvailable: boolean;
+  manualCurrentBalanceApplied: boolean;
   recurringTransactionCount: number;
   storageAvailable: boolean;
 }): AnalysisIssue[] {
   const issues: AnalysisIssue[] = [];
+  const forecastStartingBalanceAvailable =
+    fileLatestBalanceAvailable || manualCurrentBalanceApplied;
 
-  if (!latestBalanceAvailable) {
+  if (!fileLatestBalanceAvailable) {
     issues.push({
-      id: "latestBalanceUnavailable",
+      id: manualCurrentBalanceApplied
+        ? "sourceBalanceUnavailable"
+        : "latestBalanceUnavailable",
       severity: "info",
-      title: "향후 잔액 전망을 계산할 수 없습니다.",
-      description:
-        "유효한 거래일과 잔액을 함께 가진 거래가 없어 예상 월말 잔액을 계산할 수 없습니다.",
-      impact:
-        "입출금 분석은 확인할 수 있지만 향후 예상 월말잔액과 현금 위험 분석은 제공되지 않습니다.",
-      action:
-        "원본 파일에 잔액 컬럼이 있는지 확인하거나 자동 인식 수정에서 잔액 컬럼을 지정해주세요.",
+      title: manualCurrentBalanceApplied
+        ? "원본 파일에 잔액 정보가 없습니다."
+        : "향후 잔액 전망을 계산할 수 없습니다.",
+      description: manualCurrentBalanceApplied
+        ? "원본 거래에는 유효한 거래일과 잔액을 함께 가진 행이 없습니다."
+        : "유효한 거래일과 잔액을 함께 가진 거래가 없어 예상 월말 잔액을 계산할 수 없습니다.",
+      impact: manualCurrentBalanceApplied
+        ? "원본 데이터 제한은 남아 있지만 직접 입력한 현재 잔액으로 향후 전망과 현금 위험 분석을 계산합니다."
+        : "입출금 분석은 확인할 수 있지만 직접 입력 잔액을 적용하기 전에는 향후 예상 월말잔액과 현금 위험 분석이 제한됩니다.",
+      action: manualCurrentBalanceApplied
+        ? "직접 입력 잔액이 현재 사용 가능 잔액과 일치하는지 정기적으로 확인해주세요."
+        : "아래에서 현재 사용 가능 잔액을 직접 입력하거나 자동 인식 수정에서 원본 잔액 컬럼을 지정해주세요.",
     });
-  } else if (recurringTransactionCount === 0) {
+  }
+
+  if (
+    forecastStartingBalanceAvailable &&
+    recurringTransactionCount === 0
+  ) {
     issues.push({
       id: "recurringTransactionsInsufficient",
       severity: "info",
