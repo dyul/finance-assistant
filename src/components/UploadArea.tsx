@@ -19,6 +19,7 @@ import OnboardingSection from "./OnboardingSection";
 import DashboardOverview from "./DashboardOverview";
 import AnalysisIssuePanel from "./AnalysisIssuePanel";
 import TransactionClassificationTable from "./TransactionClassificationTable";
+import RecurringTransactionsTable from "./RecurringTransactionsTable";
 
 import {
   mapColumns,
@@ -1077,7 +1078,7 @@ export default function UploadArea() {
 
       {forecasts.length > 0 && (
         <ScheduledTransactionSection
-          key={fileName}
+          key={`scheduled-transactions-${fileName}`}
           forecastMonths={forecasts.map((forecast) => forecast.month)}
           scheduledTransactions={scheduledTransactions}
           outOfPeriodCount={outOfPeriodScheduledTransactions.length}
@@ -1175,68 +1176,9 @@ export default function UploadArea() {
       )}
 
       {recurringTransactions.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-3 font-semibold text-slate-900">
-            반복 거래 분석
-          </h3>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[850px] text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 font-medium">거래내용</th>
-                  <th className="px-4 py-3 font-medium">유형</th>
-                  <th className="px-4 py-3 font-medium">분류</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    평균금액
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    발생월
-                  </th>
-                  <th className="px-4 py-3 font-medium">기간</th>
-                  <th className="px-4 py-3 font-medium">신뢰도</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {recurringTransactions.map((item, index) => (
-                  <tr
-                    key={`${item.description}-${item.type}-${index}`}
-                  >
-                    <td className="px-4 py-3 font-medium">
-                      {item.description}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.type === "income" ? "수입" : "지출"}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.categoryName}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      {formatCurrency(item.averageAmount)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      {item.activeMonthCount}개월
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {formatMonth(item.firstMonth)} ~{" "}
-                      {formatMonth(item.lastMonth)}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.confidence === "high" ? "높음" : "보통"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <RecurringTransactionsTable
+          recurringTransactions={recurringTransactions}
+        />
       )}
 
       {categorySummaries.length > 0 && (
@@ -1363,7 +1305,7 @@ export default function UploadArea() {
 
       {transactions.length > 0 && (
         <TransactionClassificationTable
-          key={fileName}
+          key={`transaction-classification-${fileName}`}
           transactions={transactions}
           referenceDate={analysisReferenceDate}
         />
