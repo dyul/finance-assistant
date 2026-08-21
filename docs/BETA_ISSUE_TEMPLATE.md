@@ -8,7 +8,7 @@
 - OS:
 - 브라우저와 버전:
 - 화면 크기:
-- 파일 형식: `.xlsx` / `.xls`
+- 파일 형식: `.xlsx` / `.xls` / `.csv`
 - 대략적인 파일 크기:
 
 ## 문제
@@ -21,7 +21,7 @@
 - 재현 여부: 항상 / 가끔 / 한 번 / 확인하지 못함
 - 재현 순서:
 
-## Excel 구조
+## Excel / CSV 구조
 
 실제 금융정보를 기록하지 않고 구조 정보만 기록합니다.
 
@@ -42,7 +42,7 @@
 - [ ] 실제 거래 상대방이나 거래 적요를 기록하지 않았습니다.
 - [ ] 실제 금액과 잔액을 기록하지 않았습니다.
 - [ ] 전체 거래내역을 복사하지 않았습니다.
-- [ ] 원본 Excel을 첨부하거나 보관하지 않았습니다.
+- [ ] 원본 Excel·CSV를 첨부하거나 보관하지 않았습니다.
 - [ ] 스크린샷이 있다면 금융정보를 가렸습니다.
 
 ## 영향과 심각도
@@ -55,17 +55,15 @@
 
 ## Feedback 분류
 
-- [ ] Calculation
-- [ ] Excel Compatibility
-- [ ] Forecast Understanding
+하나의 주 분류를 선택합니다. 별개의 문제가 여러 개라면 항목을 나눠 기록합니다.
+
+- [ ] BUG
 - [ ] UX
-- [ ] Error Recovery
-- [ ] Performance
-- [ ] PDF
-- [ ] Privacy
-- [ ] Pricing
-- [ ] Feature Request
-- [ ] Other
+- [ ] COPY
+- [ ] COMPATIBILITY
+- [ ] FEATURE REQUEST
+- [ ] TRUST
+- [ ] VALUE
 
 ## 내부 처리
 

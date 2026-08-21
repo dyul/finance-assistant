@@ -1,6 +1,7 @@
 # Finance Assistant Beta Test Results
 
 > 상태: 첫 실제 사용자 테스트 시작 전 내부 기록 양식
+> Beta-01: **Not yet conducted**
 > 대상 규모: 초기 3~5명
 > 주의: 작은 표본의 결과를 시장 전체 성과나 통계적으로 검증된 결론으로 해석하지 않습니다.
 
@@ -18,7 +19,7 @@
 ### Primary
 
 - 개인사업자 또는 소규모 사업 운영자
-- 사업 통장 거래내역을 Excel로 받을 수 있는 사람
+- 사업 통장 거래내역을 Excel 또는 CSV로 받을 수 있는 사람
 - 별도 ERP·자금관리 시스템이 없거나 사용 빈도가 낮은 사람
 
 ### Secondary
@@ -39,8 +40,8 @@
 
 - 테스트 시작일:
 - 누적 사용자 수:
-- 샘플 Excel 시도:
-- 자기 Excel 시도:
+- Sample 시도:
+- Own-file 시도:
 - 성공 분석:
 - 부분 분석:
 - 분석 실패:
@@ -63,26 +64,34 @@
 | Return Intent | 다음 달 또는 향후 다시 사용할 의향 | 예/아니오와 이유 기록 |
 | Willingness to Pay Signal | 비용을 낼 이유가 되는 기능을 구체적으로 언급 | 기능명과 이유만 기록 |
 
-## 초기 합격 기준
+## 성공 기준
 
-아래 기준은 첫 3~5명 테스트를 판단하기 위한 내부 가설입니다.
+### PASS
 
-### 기능 차단 문제
+- 사용자가 서비스 목적을 대략 이해
+- Sample 업로드 성공
+- 주요 결과를 최소 1개 이상 이해
+- Forecast 의미를 대략 설명 가능
+- Blocking 오류 없음
 
-- 정상적인 지원 범위 Excel을 대부분 분석할 수 있음
-- 오류 데이터를 임의의 0원으로 바꾼 결과가 없음
-- 앱 전체 crash가 없음
-- 원본 Excel의 외부 전송이 없음
+### STRONG PASS
 
-### UX 목표
+PASS 조건에 더해 다음을 만족합니다.
 
-- 대부분 서비스 목적과 업로드 위치를 이해함
-- Forecast의 대략적인 의미를 설명할 수 있음
-- 자금 부족 결과를 자신의 말로 설명할 수 있음
+- 자기 파일 분석 성공
+- 핵심 Forecast를 스스로 찾음
+- 다음 달 재사용 의향 있음
 
-### 상품 가치 목표
+### PARTIAL
 
-최소 1명 이상이 실제 다시 사용할 이유를 설명하거나 특정 기능에 대한 지불 의향 신호를 보입니다. 이 기준은 통계적 시장 검증이 아닙니다.
+- 분석은 성공했지만 결과 이해도가 낮음
+- 또는 UX 도움 없이는 진행하기 어려움
+
+### FAIL
+
+- Sample부터 진행 불가
+- 주요 계산 오류 또는 잘못된 재무 결과
+- 핵심 기능 접근 불가
 
 ## 운영 중 관찰 항목
 
@@ -103,92 +112,134 @@
 
 ---
 
-## Participant 01
+## Beta-01 Session
 
-### 환경
+### 기본 정보
 
-- 사용자 유형: Primary / Secondary
-- 기기:
+- Status: Not yet conducted
+- Tester: Beta-01
+- Date:
+- Device:
 - OS:
-- 브라우저:
-- Excel 형식: `.xlsx` / `.xls`
-- 대략적인 파일 크기:
-- 대략적인 행 수:
-- Excel 구조: 분리 입출금 / 금액+거래구분 / 부호 포함 금액 / 기타
+- Browser:
 
-### 첫 행동
+### Input
 
-- 첫 화면 이해:
-- 샘플 사용:
-- 자기 파일 업로드:
-- 처음 막힌 위치:
+- Source: Sample / Own file / Both
+- Format: CSV / XLSX / XLS
+- Approx rows: `<100 / 100~500 / 500~1,000 / 1,000+ / unknown`
+- Balance column: yes / no / unknown
+- 실제 파일·금액·잔액 기록 여부: 기록하지 않음
 
-### 분석 결과
+### Timing (선택)
 
-- 자동 분석 성공 여부:
-- 직접 설정 사용 여부:
-- Blocking 오류:
-- Partial 오류:
-- 관련 호환성 기록:
+- Landing → first upload:
+- Upload → first result:
+- Total duration:
 
-### 이해도
+### Journey
 
-- 가장 먼저 확인한 숫자:
-- 이해하기 어려운 표현:
-- Forecast 이해:
-- 예상 범위 이해:
-- 현금 위험 이해:
+- Understood landing: yes / partial / no / unknown
+- Found upload: yes / no / unknown
+- Noticed privacy guidance: yes / no / unknown
+- Sample download: success / fail / not attempted
+- Sample analysis: success / partial / fail / not attempted
+- Own-file analysis: success / partial / fail / not attempted
+- Auto sheet detection: success / fail / not applicable
+- Auto mapping: success / fail / not applicable
+- Manual mapping: success / fail / not attempted / not applicable
+- Forecast understood: yes / partial / no / unknown
+- Scenario switching: success / fail / not attempted
+- Manual balance: success / fail / not attempted / not applicable
+- Action Guide found: yes / no / unknown
+- Scheduled transaction found: yes / no / not attempted
+- PDF found: yes / no / not attempted
+- Assistance required: none / minor / major
 
-### 가치
+### 핵심 질문 6개
 
-- 가장 유용한 기능:
-- 필요 없는 기능:
-- 다시 사용할 의향:
-- 지불 의향이 있는 기능:
+1. 처음 봤을 때 어떤 서비스라고 생각했나요?
+   - 답변:
+2. 어떤 Excel/CSV를 올려야 하는지 알 수 있었나요?
+   - 답변:
+3. 본인의 파일을 정상적으로 분석할 수 있었나요?
+   - 답변:
+4. 결과 화면에서 가장 먼저 눈에 들어온 정보는 무엇이었나요?
+   - 답변:
+5. 이해하기 어렵거나 불편했던 부분은 무엇이었나요?
+   - 답변:
+6. 다음 달에도 사용할 것 같나요? 그 이유는 무엇인가요?
+   - 답변:
 
-### Observation
+### 이해도 확인
 
-사용자가 실제로 한 행동을 기록합니다.
+- Forecast 의미에 대한 사용자 표현:
+- 확정 숫자로 오해했는가: yes / no / unknown
+- 과거 실적과 Forecast를 구분했는가: yes / partial / no / unknown
+- 보수·기준·낙관 차이를 이해했는가: yes / partial / no / unknown
+- 첫 번째로 본 숫자·내용:
+- Action Guide를 보고 느낀 행동:
 
-- (기록 전)
+### 잔액 없는 파일(해당할 때만)
 
-### Opinion
+- Forecast 제한 이유 이해:
+- 현재 잔액 입력 발견:
+- 현재 잔액 시점에 대한 사용자 표현:
+- 과거 실적에 추가되는 금액으로 오해했는가: yes / no / unknown
+- 실제 잔액 기록 여부: 기록하지 않음
 
-사용자가 말한 의견을 기록합니다.
+### Observations
 
-- (기록 전)
+사용자가 실제로 한 행동만 기록합니다.
 
-### Issue
+- (테스트 전)
 
-발견된 문제는 [`BETA_ISSUE_TEMPLATE.md`](./BETA_ISSUE_TEMPLATE.md)로 별도 기록하고 링크합니다.
+### Quotes / paraphrases
 
-- (기록 전)
+개인정보와 실제 재무정보를 제외하고 기록합니다.
+
+- (테스트 전)
+
+### Issues
+
+각 항목은 `BUG / UX / COPY / COMPATIBILITY / FEATURE REQUEST / TRUST / VALUE` 중 하나로 분류하고, 필요하면 [`BETA_ISSUE_TEMPLATE.md`](./BETA_ISSUE_TEMPLATE.md) 링크를 추가합니다.
+
+- (테스트 전)
+
+### Re-use intent
+
+- Intent: yes / maybe / no / unknown
+- Reason:
+
+### Session outcome
+
+- Outcome: PASS / STRONG PASS / PARTIAL / FAIL / Not yet assessed
+- Reason:
 
 ---
 
-새 참가자는 위 `Participant 01` 구역을 복사해 번호만 증가시킵니다.
+새 참가자는 위 `Beta-01 Session` 구역을 복사해 번호만 증가시킵니다.
 
 ## Issue Severity
 
 | 심각도 | 판단 기준 | 기본 대응 |
 | --- | --- | --- |
-| P0 | 잘못된 재무 숫자, 다른 사용자 데이터 노출, 원본 Excel 외부 전송, 앱 전체 crash, 정상 파일의 광범위한 분석 불가 | Beta를 중지하고 즉시 확인·수정 |
-| P1 | 주요 은행 Excel 실패, Forecast 불가 사유 누락, 수동 복구 불가, 모바일 핵심 UI 사용 불가 | 다음 Beta 진행 전 우선 수정 |
-| P2 | 용어·CTA 이해, 보고서 레이아웃, 안내 문구, 제한적인 Excel 호환성 | 빈도와 가치 확인 후 개선 |
-| P3 | 새 분석, 장기 Forecast, 복수 계좌, 팀 기능, 디자인 선호 | 아이디어·backlog 후보로 기록 |
+| P0 | 개인정보 노출, 데이터 외부 전송, 심각한 보안 문제 | Beta를 즉시 중단하고 blocker 보고 |
+| P1 | 잘못된 금액 계산, 수입·지출 방향 반전, Forecast 계산 오류, 정상 파일 분석 불가, 잘못된 재무 의사결정을 유발할 표시 오류 | 다음 외부 테스트 전 blocker 보고·해결 판단 |
+| P2 | 기능은 가능하지만 사용성이 크게 나쁨, 설명 부족, CTA 발견 어려움, 모바일 UI 문제, 지나치게 긴 화면 | 빈도와 사용자 가치 확인 후 개선 검토 |
+| P3 | 문구, 간격과 사소한 시각적 개선 | 기록 후 우선순위 검토 |
 
 ## Feedback 분류
 
-- Calculation
-- Excel Compatibility
-- Forecast Understanding
-- UX
-- Error Recovery
-- Performance
-- PDF
-- Privacy
-- Pricing
-- Feature Request
+각 피드백은 다음 중 하나로 분류합니다.
+
+- `BUG`: 구현 또는 계산이 의도대로 동작하지 않음
+- `UX`: 흐름, 발견성 또는 사용성이 어려움
+- `COPY`: 문구와 설명이 어렵거나 오해를 만듦
+- `COMPATIBILITY`: 특정 파일·브라우저·기기 구조에서 동작하지 않음
+- `FEATURE REQUEST`: 현재 범위에 없는 기능 요청
+- `TRUST`: 개인정보, 정확성 또는 Forecast 신뢰 문제
+- `VALUE`: 유용성, 재사용 의향과 비용 지불 이유
 
 각 피드백에는 가능한 범위에서 빈도, 심각도, 재현 가능성과 사용자 가치를 함께 기록합니다.
 
