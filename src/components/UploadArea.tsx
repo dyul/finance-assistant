@@ -23,6 +23,7 @@ import TransactionClassificationTable from "./TransactionClassificationTable";
 import RecurringTransactionsTable from "./RecurringTransactionsTable";
 import ManualBalanceSection from "./ManualBalanceSection";
 import FutureSourceTransactionsSection from "./FutureSourceTransactionsSection";
+import { HistoricalCashFlowSectionView } from "./HistoricalCashFlowSection";
 
 import {
   mapColumns,
@@ -134,9 +135,12 @@ import {
 } from "../services/futureSourceTransaction";
 import {
   formatCurrency,
-  formatMonth,
   formatSignedCurrency,
 } from "../utils/formatters";
+import {
+  aggregateHistoricalPeriods,
+  type HistoricalPeriodUnit,
+} from "../services/historicalPeriodAggregator";
 
 interface AmountWarningCounts {
   invalidAmountCount: number;
@@ -296,6 +300,10 @@ export default function UploadArea() {
     useState<MonthlyCategorySummary[]>([]);
 
   const [insights, setInsights] = useState<FinancialInsight[]>([]);
+  const [historicalPeriodUnit, setHistoricalPeriodUnit] =
+    useState<HistoricalPeriodUnit>("monthly");
+  const [historicalPeriodsExpanded, setHistoricalPeriodsExpanded] =
+    useState(false);
 
   const [scheduledTransactions, setScheduledTransactions] = useState<
     ScheduledTransaction[]
@@ -331,6 +339,10 @@ export default function UploadArea() {
 
   const recurringTransactions = useMemo(
     () => detectRecurringTransactions(analysisTransactions),
+    [analysisTransactions],
+  );
+  const historicalPeriodAggregation = useMemo(
+    () => aggregateHistoricalPeriods(analysisTransactions),
     [analysisTransactions],
   );
   const fileLatestBalance = useMemo(
@@ -492,6 +504,8 @@ export default function UploadArea() {
     setCategorySummaries([]);
     setMonthlyCategorySummaries([]);
     setInsights([]);
+    setHistoricalPeriodUnit("monthly");
+    setHistoricalPeriodsExpanded(false);
     setAmountWarningCounts({
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
@@ -519,6 +533,8 @@ export default function UploadArea() {
     setCategorySummaries([]);
     setMonthlyCategorySummaries([]);
     setInsights([]);
+    setHistoricalPeriodUnit("monthly");
+    setHistoricalPeriodsExpanded(false);
     setScheduledTransactions([]);
     dispatchFutureSourceSelection({ type: "newFile" });
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
@@ -1230,62 +1246,18 @@ export default function UploadArea() {
         <DataQualitySummary summary={dataQualitySummary} />
       )}
 
-      {monthlySummaries.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-3 font-semibold text-slate-900">
-            월별 현금흐름
-          </h3>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[650px] text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 text-left">기준월</th>
-                  <th className="px-4 py-3 text-right">총 입금</th>
-                  <th className="px-4 py-3 text-right">총 출금</th>
-                  <th className="px-4 py-3 text-right">
-                    순현금흐름
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    거래 건수
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-200">
-                {monthlySummaries.map((item) => (
-                  <tr key={item.month}>
-                    <td className="px-4 py-3 font-medium">
-                      {formatMonth(item.month)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatCurrency(item.income)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(item.expense)}
-                    </td>
-
-                    <td
-                      className={`px-4 py-3 text-right font-semibold ${
-                        item.netCashFlow >= 0
-                          ? "text-emerald-700"
-                          : "text-red-700"
-                      }`}
-                    >
-                      {formatSignedCurrency(item.netCashFlow)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      {item.transactionCount}건
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {summary && (
+        <HistoricalCashFlowSectionView
+          aggregation={historicalPeriodAggregation}
+          referenceDate={analysisReferenceDate}
+          unit={historicalPeriodUnit}
+          expanded={historicalPeriodsExpanded}
+          onUnitChange={(unit) => {
+            setHistoricalPeriodUnit(unit);
+            setHistoricalPeriodsExpanded(false);
+          }}
+          onExpandedChange={setHistoricalPeriodsExpanded}
+        />
       )}
 
       {recurringTransactions.length > 0 && (
@@ -1328,54 +1300,6 @@ export default function UploadArea() {
 
                     <td className="px-4 py-3 text-right">
                       {item.shareOfExpense.toFixed(1)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {monthlyCategorySummaries.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-3 font-semibold text-slate-900">
-            월별 주요 지출
-          </h3>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[650px] text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 text-left">기준월</th>
-                  <th className="px-4 py-3 text-left">카테고리</th>
-                  <th className="px-4 py-3 text-right">지출액</th>
-                  <th className="px-4 py-3 text-right">
-                    월 지출 비중
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {monthlyCategorySummaries.map((item) => (
-                  <tr
-                    key={`${item.month}-${item.category}`}
-                    className="border-t border-slate-200"
-                  >
-                    <td className="px-4 py-3 font-medium">
-                      {formatMonth(item.month)}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {item.categoryName}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-red-700">
-                      {formatCurrency(item.amount)}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      {item.shareOfMonthlyExpense.toFixed(1)}%
                     </td>
                   </tr>
                 ))}
