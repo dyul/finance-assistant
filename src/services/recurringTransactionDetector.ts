@@ -44,6 +44,14 @@ function normalizeDescription(description: string): string {
     .replace(/\s+/g, "");
 }
 
+export function createRecurringTransactionKey({
+  description,
+  category,
+  type,
+}: Pick<RecurringTransaction, "description" | "category" | "type">): string {
+  return [normalizeDescription(description), category, type].join("|");
+}
+
 function calculateAverage(values: number[]): number {
   if (values.length === 0) {
     return 0;
@@ -117,11 +125,11 @@ export function detectRecurringTransactions(
       continue;
     }
 
-    const key = [
-      normalizedDescription,
-      transaction.category,
+    const key = createRecurringTransactionKey({
+      description: transaction.description,
+      category: transaction.category,
       type,
-    ].join("|");
+    });
 
     const existingGroup = groups.get(key);
 

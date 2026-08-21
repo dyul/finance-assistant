@@ -1,4 +1,7 @@
-import type { RecurringTransaction } from "./recurringTransactionDetector";
+import {
+  createRecurringTransactionKey,
+  type RecurringTransaction,
+} from "./recurringTransactionDetector";
 import type { Transaction } from "./transactionParser";
 import type { ScheduledTransaction } from "./scheduledTransaction";
 import { getTrendAdjustedIncome } from "./incomeTrend";
@@ -116,24 +119,6 @@ export function generateCashFlowForecast(
     return [];
   }
 
-  let baseRecurringIncome = 0;
-  let recurringExpense = 0;
-
-  let recurringIncomeCount = 0;
-  let recurringExpenseCount = 0;
-
-  for (const transaction of recurringTransactions) {
-    if (transaction.type === "income") {
-      baseRecurringIncome += transaction.averageAmount;
-      recurringIncomeCount += 1;
-    }
-
-    if (transaction.type === "expense") {
-      recurringExpense += transaction.averageAmount;
-      recurringExpenseCount += 1;
-    }
-  }
-
   const forecasts: MonthlyForecast[] = [];
 
   let projectedBalance = startingBalance;
@@ -152,7 +137,43 @@ export function generateCashFlowForecast(
     const monthStartingBalance = projectedBalance;
 
     const forecastMonth = formatMonth(target.year, target.month);
-    const recurringIncome = recurringTransactions.reduce(
+    const monthlyScheduledTransactions = scheduledTransactions.filter(
+      (transaction) => transaction.date.slice(0, 7) === forecastMonth,
+    );
+    const confirmedFileRecurringKeys = new Set(
+      monthlyScheduledTransactions.flatMap((transaction) =>
+        transaction.source === "file" && transaction.recurringKey
+          ? [transaction.recurringKey]
+          : [],
+      ),
+    );
+    const activeRecurringTransactions = recurringTransactions.filter(
+      (transaction) =>
+        !confirmedFileRecurringKeys.has(
+          createRecurringTransactionKey(transaction),
+        ),
+    );
+    const baseRecurringIncome = activeRecurringTransactions.reduce(
+      (total, transaction) =>
+        transaction.type === "income"
+          ? total + transaction.averageAmount
+          : total,
+      0,
+    );
+    const recurringExpense = activeRecurringTransactions.reduce(
+      (total, transaction) =>
+        transaction.type === "expense"
+          ? total + transaction.averageAmount
+          : total,
+      0,
+    );
+    const recurringIncomeCount = activeRecurringTransactions.filter(
+      (transaction) => transaction.type === "income",
+    ).length;
+    const recurringExpenseCount = activeRecurringTransactions.filter(
+      (transaction) => transaction.type === "expense",
+    ).length;
+    const recurringIncome = activeRecurringTransactions.reduce(
       (total, transaction) => {
         if (transaction.type !== "income") {
           return total;
@@ -177,9 +198,6 @@ export function generateCashFlowForecast(
         );
       },
       0,
-    );
-    const monthlyScheduledTransactions = scheduledTransactions.filter(
-      (transaction) => transaction.date.slice(0, 7) === forecastMonth,
     );
 
     const scheduledIncome = monthlyScheduledTransactions.reduce(

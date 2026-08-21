@@ -22,6 +22,7 @@ import AnalysisIssuePanel from "./AnalysisIssuePanel";
 import TransactionClassificationTable from "./TransactionClassificationTable";
 import RecurringTransactionsTable from "./RecurringTransactionsTable";
 import ManualBalanceSection from "./ManualBalanceSection";
+import FutureSourceTransactionsSection from "./FutureSourceTransactionsSection";
 
 import {
   mapColumns,
@@ -126,6 +127,12 @@ import {
   resolveForecastStartingBalance,
 } from "../services/manualBalance";
 import {
+  createFutureSourceTransactions,
+  futureSourceSelectionReducer,
+  partitionFutureSourceTransactionsByForecastMonths,
+  toFileScheduledTransactions,
+} from "../services/futureSourceTransaction";
+import {
   formatCurrency,
   formatMonth,
   formatSignedCurrency,
@@ -168,8 +175,7 @@ export function DataQualitySummary({
   const hasWarning =
     summary.invalidAmountCount > 0 ||
     summary.invalidDateCount > 0 ||
-    summary.directionIssueCount > 0 ||
-    summary.futureDatedTransactionCount > 0;
+    summary.directionIssueCount > 0;
   const metrics = [
     ["전체 거래", summary.totalTransactionCount],
     ["실적 분석 포함", summary.historicalTransactionCount],
@@ -178,7 +184,7 @@ export function DataQualitySummary({
     ["금액 확인 필요", summary.invalidAmountCount],
     ["날짜 확인 필요", summary.invalidDateCount],
     ["입출금 구분 확인 필요", summary.directionIssueCount],
-    ["미래 날짜 제외", summary.futureDatedTransactionCount],
+    ["미래 날짜 거래", summary.futureDatedTransactionCount],
   ] as const;
 
   return (
@@ -205,8 +211,7 @@ export function DataQualitySummary({
           const isErrorMetric =
             label === "금액 확인 필요" ||
             label === "날짜 확인 필요" ||
-            label === "입출금 구분 확인 필요" ||
-            label === "미래 날짜 제외";
+            label === "입출금 구분 확인 필요";
 
           return (
             <div
@@ -295,6 +300,8 @@ export default function UploadArea() {
   const [scheduledTransactions, setScheduledTransactions] = useState<
     ScheduledTransaction[]
   >([]);
+  const [excludedFutureTransactionIds, dispatchFutureSourceSelection] =
+    useReducer(futureSourceSelectionReducer, []);
   const [selectedScenario, setSelectedScenario] =
     useState<ForecastScenario>(DEFAULT_FORECAST_SCENARIO);
   const [manualCurrentBalance, dispatchManualBalance] = useReducer(
@@ -345,6 +352,18 @@ export default function UploadArea() {
       }),
     [analysisReferenceDate, transactions],
   );
+  const futureSourceTransactions = useMemo(
+    () =>
+      createFutureSourceTransactions(
+        transactions,
+        analysisReferenceDate,
+      ),
+    [analysisReferenceDate, transactions],
+  );
+  const excludedFutureTransactionIdSet = useMemo(
+    () => new Set(excludedFutureTransactionIds),
+    [excludedFutureTransactionIds],
+  );
   const forecastMonths = useMemo(
     () =>
       createScenarioForecastAnalyses(
@@ -365,17 +384,37 @@ export default function UploadArea() {
     scheduledTransactionForecastScope.applicable;
   const outOfPeriodScheduledTransactions =
     scheduledTransactionForecastScope.outOfPeriod;
+  const futureSourceForecastScope = useMemo(
+    () =>
+      partitionFutureSourceTransactionsByForecastMonths(
+        futureSourceTransactions,
+        forecastMonths,
+        excludedFutureTransactionIdSet,
+      ),
+    [
+      excludedFutureTransactionIdSet,
+      forecastMonths,
+      futureSourceTransactions,
+    ],
+  );
+  const forecastScheduledTransactions = useMemo(
+    () => [
+      ...applicableScheduledTransactions,
+      ...toFileScheduledTransactions(futureSourceForecastScope.included),
+    ],
+    [applicableScheduledTransactions, futureSourceForecastScope.included],
+  );
   const scenarioAnalyses = useMemo(
     () =>
       createScenarioForecastAnalyses(
         recurringTransactions,
         forecastStartingBalance.value,
-        applicableScheduledTransactions,
+        forecastScheduledTransactions,
       ),
     [
       recurringTransactions,
       forecastStartingBalance.value,
-      applicableScheduledTransactions,
+      forecastScheduledTransactions,
     ],
   );
   const selectedAnalysis = scenarioAnalyses[selectedScenario];
@@ -395,13 +434,13 @@ export default function UploadArea() {
         cashRisk: selectedAnalysis.cashRisk,
         categorySummaries,
         monthlyCategorySummaries,
-        scheduledTransactions: applicableScheduledTransactions,
+        scheduledTransactions: forecastScheduledTransactions,
       }),
     [
       selectedAnalysis,
       categorySummaries,
       monthlyCategorySummaries,
-      applicableScheduledTransactions,
+      forecastScheduledTransactions,
     ],
   );
 
@@ -481,6 +520,7 @@ export default function UploadArea() {
     setMonthlyCategorySummaries([]);
     setInsights([]);
     setScheduledTransactions([]);
+    dispatchFutureSourceSelection({ type: "newFile" });
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     dispatchManualBalance({ type: "newFile" });
     setSessionStorageAvailable(true);
@@ -545,9 +585,17 @@ export default function UploadArea() {
     const cleared = clearUserSession(fileName);
 
     setScheduledTransactions([]);
+    dispatchFutureSourceSelection({ type: "fileSettingsReset" });
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     dispatchManualBalance({ type: "fileSettingsReset" });
     setSessionStorageAvailable(cleared);
+  }
+
+  function handleFutureTransactionInclusionChange(
+    id: string,
+    included: boolean,
+  ) {
+    dispatchFutureSourceSelection({ type: "setIncluded", id, included });
   }
 
   function createManualPrefillForLocation(
@@ -597,6 +645,11 @@ export default function UploadArea() {
       throw new NoValidTransactionsError();
     }
 
+    const nextFutureSourceTransactionIds = createFutureSourceTransactions(
+      parsedResult.transactions,
+      referenceDate,
+    ).map((transaction) => transaction.id);
+
     const financialSummary = calculateFinancialSummary(
       transactionDateScope.historicalTransactions,
     );
@@ -638,6 +691,10 @@ export default function UploadArea() {
           };
 
     setSheetDetection(activeDetection);
+    dispatchFutureSourceSelection({
+      type: "sameFileReanalyzed",
+      availableIds: nextFutureSourceTransactionIds,
+    });
     setColumnMappings(mappings);
     setTransactions(parsedResult.transactions);
     setAnalysisTransactions(transactionDateScope.historicalTransactions);
@@ -1120,12 +1177,23 @@ export default function UploadArea() {
         />
       )}
 
+      {summary && forecasts.length > 0 && futureSourceTransactions.length > 0 && (
+        <FutureSourceTransactionsSection
+          key={`future-source-transactions-${fileName}`}
+          transactions={futureSourceTransactions}
+          forecastMonths={forecasts.map((forecast) => forecast.month)}
+          excludedIds={excludedFutureTransactionIdSet}
+          onInclusionChange={handleFutureTransactionInclusionChange}
+        />
+      )}
+
       {forecasts.length > 0 && (
         <ScheduledTransactionSection
           key={`scheduled-transactions-${fileName}`}
           forecastMonths={forecasts.map((forecast) => forecast.month)}
           scheduledTransactions={scheduledTransactions}
           outOfPeriodCount={outOfPeriodScheduledTransactions.length}
+          fileFutureTransactionCount={futureSourceForecastScope.included.length}
           onAdd={handleScheduledTransactionAdd}
           onRemove={handleScheduledTransactionRemove}
           onReset={handleCurrentFileSettingsReset}
@@ -1435,6 +1503,7 @@ export default function UploadArea() {
           selectedScenario={selectedScenario}
           actionGuideItems={actionGuideItems}
           categorySummaries={categorySummaries}
+          futureSourceForecastScope={futureSourceForecastScope}
         />
       )}
     </>

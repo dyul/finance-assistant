@@ -143,15 +143,14 @@ export function createPartialAnalysisIssues(
   if (dataQuality.futureDatedTransactionCount > 0) {
     issues.push({
       id: "futureDatedTransaction",
-      severity: "warning",
-      title: `미래 날짜 거래 ${dataQuality.futureDatedTransactionCount}건이 실적 분석에서 제외되었습니다.`,
+      severity: "info",
+      title: `미래 날짜 거래 ${dataQuality.futureDatedTransactionCount}건을 별도로 확인했습니다.`,
       description:
         "거래일이 현재 브라우저의 오늘 날짜보다 뒤인 원본 거래입니다.",
       impact:
-        "과거 입출금 합계·월별 흐름·반복 거래·수입 추세·최근 잔액·향후 전망 기준에서 제외했습니다.",
+        "과거 입출금 합계·월별 흐름·반복 거래·수입 추세·최근 잔액에서는 제외하고, 유효한 거래는 현재 3개월 전망 범위 안에서 자동 반영합니다.",
       action:
-        "실제 예정 거래라면 확정 예정 거래에 별도로 추가해주세요. 원본 날짜가 잘못됐다면 수정한 뒤 다시 업로드해주세요.",
-      actionHref: "#transaction-classification",
+        "아래 자동 반영 내역에서 전망 반영 여부를 확인하거나 조정할 수 있습니다. 원본 날짜가 잘못됐다면 수정한 뒤 다시 업로드해주세요.",
     });
   }
 

@@ -3,6 +3,7 @@ import type { CategorySummary } from "../services/categoryAggregator";
 import type { DataQualitySummary } from "../services/dataQualityAnalyzer";
 import type { FinancialSummary } from "../services/financialEngine";
 import type { ForecastAnalysis } from "../services/forecastEngine";
+import type { FutureSourceForecastScope } from "../services/futureSourceTransaction";
 import { createForecastSummary } from "../services/forecastPresentation";
 import type { ForecastScenario } from "../services/forecastScenario";
 import type { MonthlySummary } from "../services/monthlyAggregator";
@@ -31,6 +32,7 @@ export interface AnalysisReportProps {
   selectedScenario: ForecastScenario;
   actionGuideItems: ActionGuideItem[];
   categorySummaries: CategorySummary[];
+  futureSourceForecastScope?: FutureSourceForecastScope;
 }
 
 function ReportMetric({
@@ -62,6 +64,7 @@ export default function AnalysisReport({
   selectedScenario,
   actionGuideItems,
   categorySummaries,
+  futureSourceForecastScope,
 }: AnalysisReportProps) {
   const { forecasts, cashRisk } = analysis;
   const forecastSummary = createForecastSummary(forecasts, cashRisk);
@@ -71,8 +74,7 @@ export default function AnalysisReport({
   const hasDataQualityWarning =
     dataQuality.invalidAmountCount > 0 ||
     dataQuality.invalidDateCount > 0 ||
-    dataQuality.directionIssueCount > 0 ||
-    dataQuality.futureDatedTransactionCount > 0;
+    dataQuality.directionIssueCount > 0;
 
   return (
     <article className="print-only analysis-report text-slate-950">
@@ -173,7 +175,7 @@ export default function AnalysisReport({
             value={`${dataQuality.directionIssueCount}건`}
           />
           <ReportMetric
-            label="미래 날짜 제외"
+            label="미래 날짜 거래"
             value={`${dataQuality.futureDatedTransactionCount}건`}
           />
         </dl>
@@ -181,6 +183,11 @@ export default function AnalysisReport({
           <p className="report-warning mt-3 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm">
             일부 거래가 날짜 또는 금액 기반 분석에서 제외되었거나 미래 날짜
             정책에 따라 실적에서 제외되었습니다.
+          </p>
+        )}
+        {dataQuality.futureDatedTransactionCount > 0 && (
+          <p className="mt-3 border-l-4 border-blue-500 bg-blue-50 p-3 text-sm">
+            미래 날짜 거래는 과거 실적에서 제외했습니다. 유효한 거래 중 현재 3개월 전망 범위 안의 거래는 전망에 자동 반영했습니다.
           </p>
         )}
       </section>
@@ -391,9 +398,15 @@ export default function AnalysisReport({
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-700">
           <li>본 결과는 업로드한 거래내역을 기반으로 한 추정치입니다.</li>
           <li>
-            향후 3개월 전망은 과거 반복거래, 최근 수입 추세와 사용자가
-            입력한 확정 예정 거래를 기반으로 한 추정치입니다.
+            향후 3개월 전망은 과거 반복거래, 최근 수입 추세, 파일에서 자동 반영한 미래 거래와 사용자가 입력한 확정 예정 거래를 기반으로 한 추정치입니다.
           </li>
+          {futureSourceForecastScope &&
+            (futureSourceForecastScope.included.length > 0 ||
+              futureSourceForecastScope.outOfHorizon.length > 0) && (
+              <li>
+                파일의 유효한 미래 거래 중 {futureSourceForecastScope.included.length.toLocaleString("ko-KR")}건을 현재 전망에 자동 반영했고, {futureSourceForecastScope.outOfHorizon.length.toLocaleString("ko-KR")}건은 3개월 전망 기간 밖이라 현재 계산에 반영하지 않았습니다.
+              </li>
+            )}
           <li>
             보수·기준·낙관 예상은 미래 결과를 보장하지 않습니다.
           </li>

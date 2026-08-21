@@ -78,7 +78,7 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("입출금 구분 확인 필요");
   });
 
-  it("미래 날짜 제외 건수를 데이터 품질 영역에 표시한다", () => {
+  it("미래 날짜 거래 건수를 오류가 아닌 별도 거래로 표시한다", () => {
     const markup = renderToStaticMarkup(
       <DataQualitySummary
         summary={{
@@ -101,7 +101,7 @@ describe("UploadArea 날짜 오류 안내", () => {
     expect(markup).toContain("823건");
     expect(markup).toContain("실적 분석 포함");
     expect(markup).toContain("820건");
-    expect(markup).toContain("미래 날짜 제외");
+    expect(markup).toContain("미래 날짜 거래");
     expect(markup).toContain("3건");
   });
 

@@ -54,6 +54,24 @@ describe("확정 예정 거래 영역", () => {
     expect(markup).toContain("삭제");
   });
 
+  it("파일 미래 거래의 수동 중복 추가 위험을 안내한다", () => {
+    const markup = renderToStaticMarkup(
+      <ScheduledTransactionSection
+        forecastMonths={["2026-09", "2026-10", "2026-11"]}
+        scheduledTransactions={[]}
+        outOfPeriodCount={0}
+        fileFutureTransactionCount={3}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("파일에서 발견된 미래 거래 3건");
+    expect(markup).toContain("이미 전망에 자동 반영");
+    expect(markup).toContain("중복 반영될 수 있습니다");
+  });
+
   it("예정일·내용·금액 누락을 입력 항목별로 안내한다", () => {
     expect(
       validateScheduledTransactionForm({

@@ -9,6 +9,7 @@ import {
   type ScenarioForecastAnalyses,
 } from "../services/forecastEngine";
 import type { ForecastScenario } from "../services/forecastScenario";
+import type { FutureSourceForecastScope } from "../services/futureSourceTransaction";
 import type { RecurringTransaction } from "../services/recurringTransactionDetector";
 import type { ScheduledTransaction } from "../services/scheduledTransaction";
 
@@ -86,6 +87,7 @@ function renderReport(
   scheduledTransactions: ScheduledTransaction[] = [],
   categorySummaries: CategorySummary[] = categories,
   invalidDateCount = 0,
+  futureSourceForecastScope?: FutureSourceForecastScope,
 ): string {
   const analysis = analyses[scenario];
   const actionGuideItems = createActionGuide({
@@ -123,7 +125,10 @@ function renderReport(
         invalidAmountCount: 0,
         invalidDateCount,
         directionIssueCount: 0,
-        futureDatedTransactionCount: 0,
+        futureDatedTransactionCount:
+          (futureSourceForecastScope?.included.length ?? 0) +
+          (futureSourceForecastScope?.excluded.length ?? 0) +
+          (futureSourceForecastScope?.outOfHorizon.length ?? 0),
         futureDatedIncome: 0,
         futureDatedExpense: 0,
       }}
@@ -154,6 +159,7 @@ function renderReport(
       selectedScenario={scenario}
       actionGuideItems={actionGuideItems}
       categorySummaries={categorySummaries}
+      futureSourceForecastScope={futureSourceForecastScope}
     />,
   );
 }
@@ -233,6 +239,51 @@ describe("AnalysisReport", () => {
     expect(markup).toContain("+1,453,000원");
     expect(markup).toContain("예정 입금 일정 확인");
     expect(markup).toContain("2026년 5월 10일");
+  });
+
+  it("파일 미래 거래의 자동 반영·기간 밖 provenance를 PDF 기준에 표시한다", () => {
+    const futureScope: FutureSourceForecastScope = {
+      included: [
+        {
+          id: "file-future-1",
+          sourceIndex: 10,
+          date: "2026-05-10",
+          description: "합성 미래 지출",
+          category: "other",
+          type: "expense",
+          amount: 120_000,
+          recurringKey: "합성미래지출|other|expense",
+        },
+      ],
+      excluded: [],
+      outOfHorizon: [
+        {
+          id: "file-future-2",
+          sourceIndex: 11,
+          date: "2026-07-10",
+          description: "합성 기간 밖 지출",
+          category: "other",
+          type: "expense",
+          amount: 90_000,
+          recurringKey: "합성기간밖지출|other|expense",
+        },
+      ],
+      includedIncome: 0,
+      includedExpense: 120_000,
+    };
+    const markup = renderReport(
+      createAnalyses(),
+      "base",
+      [],
+      categories,
+      0,
+      futureScope,
+    );
+
+    expect(markup).toContain("미래 날짜 거래는 과거 실적에서 제외");
+    expect(markup).toContain("파일에서 자동 반영한 미래 거래");
+    expect(markup).toContain("1건을 현재 전망에 자동 반영");
+    expect(markup).toContain("1건은 3개월 전망 기간 밖");
   });
 
   it("주요 지출은 금액순 최대 5개만 표시한다", () => {

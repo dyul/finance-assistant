@@ -11,6 +11,7 @@ interface ScheduledTransactionSectionProps {
   forecastMonths: string[];
   scheduledTransactions: ScheduledTransaction[];
   outOfPeriodCount: number;
+  fileFutureTransactionCount?: number;
   onAdd: (transaction: ScheduledTransaction) => void;
   onRemove: (id: string) => void;
   onReset: () => void;
@@ -20,6 +21,7 @@ export default function ScheduledTransactionSection({
   forecastMonths,
   scheduledTransactions,
   outOfPeriodCount,
+  fileFutureTransactionCount = 0,
   onAdd,
   onRemove,
   onReset,
@@ -98,6 +100,11 @@ export default function ScheduledTransactionSection({
         className="rounded-lg border border-slate-200 bg-slate-50 p-4"
         onSubmit={handleSubmit}
       >
+        {fileFutureTransactionCount > 0 && (
+          <p className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900">
+            파일에서 발견된 미래 거래 {fileFutureTransactionCount.toLocaleString("ko-KR")}건은 이미 전망에 자동 반영됩니다. 같은 거래를 다시 추가하면 중복 반영될 수 있습니다.
+          </p>
+        )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <label className="text-sm font-medium text-slate-700">
             예정일

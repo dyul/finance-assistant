@@ -1,4 +1,5 @@
 export type ScheduledTransactionType = "income" | "expense";
+export type ScheduledTransactionSource = "manual" | "file";
 
 export interface ScheduledTransaction {
   id: string;
@@ -6,6 +7,8 @@ export interface ScheduledTransaction {
   description: string;
   type: ScheduledTransactionType;
   amount: number;
+  source?: ScheduledTransactionSource;
+  recurringKey?: string;
 }
 
 export interface ScheduledTransactionForecastScope {
