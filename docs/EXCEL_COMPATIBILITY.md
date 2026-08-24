@@ -39,6 +39,8 @@
 | 생성 fixture | `.csv` UTF-8 BOM | 가계부 export형 헤더, `수입/지출`+양수 금액, `내역`, 잔액 없음 | PASS | 개인정보 없는 합성 데이터로 방향·설명·합계·잔액 제한, 미래 거래의 historical 제외와 3개월 Forecast 자동 반영을 회귀 테스트 |
 | 생성 fixture | 형식 비특정 | 미래 수입·지출, 기간 밖 거래, 개별 제외, recurring 동일 키 | PASS | 유효 거래만 자동 반영, 기간 밖 보존, 파일 확정값의 recurring 추정 대체와 원본 불변 테스트 |
 | 생성 fixture | `.csv` UTF-8 | 2024~2026 장기 거래, 잔액, 날짜 오류, 미래 거래 | PASS | 월 32개·분기 11개·연도 3개 집계, 기간말 잔액, 날짜 오류 reconciliation과 미래 거래 historical 제외 검증 |
+| 생성 fixture | `.csv` UTF-8 | 과거 잔액 없음·직접 입력 시작 잔액 | PASS | 가짜 historical 선 없이 전망 시작점과 기존 Forecast 잔액만 표시 |
+| 생성 fixture | `.csv` UTF-8 | 음수 historical 잔액·음수 Forecast | PASS | 0원 기준선 아래 point와 점선 Forecast가 clipping 없이 표시 |
 
 ## 실제 사용자 Excel·CSV 검증
 

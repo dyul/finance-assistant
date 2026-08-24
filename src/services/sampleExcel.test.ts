@@ -12,6 +12,8 @@ import {
   getLatestBalance,
 } from "./forecastEngine";
 import { aggregateMonthly } from "./monthlyAggregator";
+import { aggregateHistoricalPeriods } from "./historicalPeriodAggregator";
+import { createCashBalanceTrendModel } from "./cashBalanceTrend";
 import { detectRecurringTransactions } from "./recurringTransactionDetector";
 import { detectTransactionSheet } from "./transactionSheetDetector";
 import { parseTransactions } from "./transactionParser";
@@ -59,6 +61,34 @@ describe("사용자용 샘플 Excel", () => {
       recurringTransactions,
       getLatestBalance(parsed.transactions),
     );
+    const historicalPeriods = aggregateHistoricalPeriods(parsed.transactions);
+    const startingBalance = {
+      value: getLatestBalance(parsed.transactions),
+      source: "file" as const,
+    };
+    const graphModels = {
+      conservative: createCashBalanceTrendModel({
+        monthlySummaries: historicalPeriods.monthly,
+        startingBalance,
+        forecasts: analyses.conservative.forecasts,
+        scenario: "conservative",
+        referenceDate: "2026-08-24",
+      }),
+      base: createCashBalanceTrendModel({
+        monthlySummaries: historicalPeriods.monthly,
+        startingBalance,
+        forecasts: analyses.base.forecasts,
+        scenario: "base",
+        referenceDate: "2026-08-24",
+      }),
+      optimistic: createCashBalanceTrendModel({
+        monthlySummaries: historicalPeriods.monthly,
+        startingBalance,
+        forecasts: analyses.optimistic.forecasts,
+        scenario: "optimistic",
+        referenceDate: "2026-08-24",
+      }),
+    };
 
     expect(parsed.invalidDateCount).toBe(0);
     expect(summary).toMatchObject({
@@ -88,5 +118,18 @@ describe("사용자용 샘플 Excel", () => {
     expect(
       analyses.optimistic.forecasts.at(-1)?.expectedEndingBalance,
     ).toBeCloseTo(634_509, 0);
+    expect(
+      graphModels.conservative.forecastPoints.at(-1)?.balance,
+    ).toBeCloseTo(277_491, 0);
+    expect(graphModels.base.forecastPoints.at(-1)?.balance).toBeCloseTo(
+      456_000,
+      2,
+    );
+    expect(
+      graphModels.optimistic.forecastPoints.at(-1)?.balance,
+    ).toBeCloseTo(634_509, 0);
+    expect(graphModels.conservative.historicalPoints).toEqual(
+      graphModels.optimistic.historicalPoints,
+    );
   });
 });

@@ -18,6 +18,8 @@ import {
   FORECAST_SCENARIO_SPREAD_DESCRIPTION,
 } from "./forecastScenarioContent";
 import type { ForecastStartingBalanceSource } from "../services/manualBalance";
+import type { CashBalanceTrendModel } from "../services/cashBalanceTrend";
+import CashBalanceTrendSection from "./CashBalanceTrendSection";
 
 const FORECAST_SCENARIO_ORDER: ForecastScenario[] = [
   "conservative",
@@ -85,6 +87,7 @@ interface ForecastSectionProps extends ForecastScenarioTabsProps {
   summary: ForecastSummary;
   actionGuideItems: ActionGuideItem[];
   startingBalanceSource: ForecastStartingBalanceSource;
+  balanceTrendModel?: CashBalanceTrendModel;
 }
 
 function getRiskLabel(level: NonNullable<ForecastAnalysis["cashRisk"]>["level"]): string {
@@ -215,6 +218,7 @@ export default function ForecastSection({
   onScenarioChange,
   actionGuideItems,
   startingBalanceSource,
+  balanceTrendModel,
 }: ForecastSectionProps) {
   const { forecasts, cashRisk } = analysis;
 
@@ -266,6 +270,10 @@ export default function ForecastSection({
           selectedScenario={selectedScenario}
           onScenarioChange={onScenarioChange}
         />
+
+        {balanceTrendModel && (
+          <CashBalanceTrendSection model={balanceTrendModel} />
+        )}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -24,6 +24,7 @@ import RecurringTransactionsTable from "./RecurringTransactionsTable";
 import ManualBalanceSection from "./ManualBalanceSection";
 import FutureSourceTransactionsSection from "./FutureSourceTransactionsSection";
 import { HistoricalCashFlowSectionView } from "./HistoricalCashFlowSection";
+import CashBalanceTrendSection from "./CashBalanceTrendSection";
 
 import {
   mapColumns,
@@ -141,6 +142,7 @@ import {
   aggregateHistoricalPeriods,
   type HistoricalPeriodUnit,
 } from "../services/historicalPeriodAggregator";
+import { createCashBalanceTrendModel } from "../services/cashBalanceTrend";
 
 interface AmountWarningCounts {
   invalidAmountCount: number;
@@ -431,6 +433,23 @@ export default function UploadArea() {
   );
   const selectedAnalysis = scenarioAnalyses[selectedScenario];
   const { forecasts } = selectedAnalysis;
+  const cashBalanceTrendModel = useMemo(
+    () =>
+      createCashBalanceTrendModel({
+        monthlySummaries: historicalPeriodAggregation.monthly,
+        startingBalance: forecastStartingBalance,
+        forecasts: selectedAnalysis.forecasts,
+        scenario: selectedScenario,
+        referenceDate: analysisReferenceDate,
+      }),
+    [
+      analysisReferenceDate,
+      forecastStartingBalance,
+      historicalPeriodAggregation.monthly,
+      selectedAnalysis.forecasts,
+      selectedScenario,
+    ],
+  );
   const selectedForecastSummary = useMemo(
     () =>
       createForecastSummary(
@@ -1216,6 +1235,10 @@ export default function UploadArea() {
         />
       )}
 
+      {summary && forecasts.length === 0 && (
+        <CashBalanceTrendSection model={cashBalanceTrendModel} />
+      )}
+
       {summary && forecasts.length > 0 && (
         <ForecastSection
           analysis={selectedAnalysis}
@@ -1224,6 +1247,7 @@ export default function UploadArea() {
           onScenarioChange={handleScenarioChange}
           actionGuideItems={actionGuideItems}
           startingBalanceSource={forecastStartingBalance.source}
+          balanceTrendModel={cashBalanceTrendModel}
         />
       )}
 
