@@ -136,7 +136,7 @@ describe("수동 시트·컬럼 매핑", () => {
       createBlockingAnalysisIssue("transactionSheetNotFound"),
     ).toMatchObject({
       severity: "blocking",
-      title: "거래내역 시트를 자동으로 찾지 못했습니다.",
+      title: "거래내역 표를 자동으로 찾지 못했습니다.",
     });
 
     expect(calculateFinancialSummary(parsed.transactions)).toMatchObject({

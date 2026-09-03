@@ -1,7 +1,7 @@
 # Finance Assistant Beta Test Results
 
-> 상태: 첫 실제 사용자 테스트 시작 전 내부 기록 양식
-> Beta-01: **Not yet conducted**
+> 상태: 첫 실제 사용자 테스트 피드백 기록
+> Beta-01: **Conducted — partial anonymous record**
 > 대상 규모: 초기 3~5명
 > 주의: 작은 표본의 결과를 시장 전체 성과나 통계적으로 검증된 결론으로 해석하지 않습니다.
 
@@ -38,14 +38,14 @@
 
 ## Test Summary
 
-- 테스트 시작일:
-- 누적 사용자 수:
+- 테스트 시작일: 미기록
+- 누적 사용자 수: 1명
 - Sample 시도:
-- Own-file 시도:
-- 성공 분석:
+- Own-file 시도: 1명 중 1명
+- 성공 분석: 1명 중 1명(직접 설정 후)
 - 부분 분석:
 - 분석 실패:
-- 직접 설정 사용:
+- 직접 설정 사용: 1명 중 1명
 - PDF 사용:
 - 추가 설명 없이 완료:
 - Forecast 의미 설명 가능:
@@ -69,6 +69,26 @@
 - 내용: 과거 현금 잔액 추이와 미래 예상 현금 잔액 추이를 한눈에 볼 수 있는 그래프를 원함
 - 개인정보·실제 금액·파일명: 기록하지 않음
 - 반영 상태: Day 42 구현 및 공개 sample·합성 데이터 회귀 검증
+
+- 분류: `COPY / UX`
+- 내용: 첫 화면의 “통장 거래내역” 표현을 은행에서 반드시 파일을 내려받아야 한다는 뜻으로 오해함
+- 개인정보·실제 금액·파일명: 기록하지 않음
+- 반영 상태: Day 45에서 은행 다운로드·가계부 앱 export·직접 관리 파일 지원 안내로 수정
+
+- 분류: `FEATURE REQUEST / COMPATIBILITY / VALUE`
+- 내용: 여러 통장을 사용하는 경우 여러 파일을 함께 분석할 필요가 있음
+- 개인정보·실제 금액·파일명: 기록하지 않음
+- 반영 상태: 향후 후보로 기록, Day 45에서는 한 번에 1개 파일 제한만 안내
+
+- 분류: `UX / COMPATIBILITY`
+- 내용: 일부 모바일 가계부 앱은 CSV export 과정에 메일 앱 연동 등이 필요해 파일 준비가 번거로움
+- 개인정보·실제 앱 이름·파일명: 기록하지 않음
+- 반영 상태: 특정 앱 export 자동화는 범위 밖으로 유지하고 샘플 우선 체험 문구를 보강
+
+- 분류: `COMPATIBILITY / UX`
+- 내용: 실제 은행 `.xls`는 파일과 1개 시트를 읽었지만 자동 거래 표 탐지에 실패했고, 사용자가 헤더 행과 `거래일시`·`적요` 등의 컬럼을 직접 설정한 뒤 정상 분석함
+- 개인정보·은행명·실제 헤더 외 거래정보·파일명: 기록하지 않음
+- 반영 상태: Day 45에서 31~100행 fallback과 `거래일시` 정확 별칭을 합성 `.xls`·`.xlsx`로 검증, 실제 원본 재검증 필요
 
 ## 수동 성공 지표
 
@@ -133,17 +153,17 @@ PASS 조건에 더해 다음을 만족합니다.
 
 ### 기본 정보
 
-- Status: Not yet conducted
+- Status: Conducted — partial anonymous record
 - Tester: Beta-01
-- Date:
-- Device:
-- OS:
-- Browser:
+- Date: not recorded
+- Device: unknown
+- OS: unknown
+- Browser: unknown
 
 ### Input
 
-- Source: Sample / Own file / Both
-- Format: CSV / XLSX / XLS
+- Source: Own file
+- Format: XLS
 - Approx rows: `<100 / 100~500 / 500~1,000 / 1,000+ / unknown`
 - Balance column: yes / no / unknown
 - 실제 파일·금액·잔액 기록 여부: 기록하지 않음
@@ -161,10 +181,10 @@ PASS 조건에 더해 다음을 만족합니다.
 - Noticed privacy guidance: yes / no / unknown
 - Sample download: success / fail / not attempted
 - Sample analysis: success / partial / fail / not attempted
-- Own-file analysis: success / partial / fail / not attempted
-- Auto sheet detection: success / fail / not applicable
-- Auto mapping: success / fail / not applicable
-- Manual mapping: success / fail / not attempted / not applicable
+- Own-file analysis: success after manual mapping
+- Auto sheet detection: fail
+- Auto mapping: fail
+- Manual mapping: success
 - Forecast understood: yes / partial / no / unknown
 - Scenario switching: success / fail / not attempted
 - Manual balance: success / fail / not attempted / not applicable
@@ -209,19 +229,25 @@ PASS 조건에 더해 다음을 만족합니다.
 
 사용자가 실제로 한 행동만 기록합니다.
 
-- (테스트 전)
+- 첫 화면의 “통장 거래내역” 표현을 보고 은행 파일을 반드시 내려받아야 한다고 이해함.
+- 실제 은행 `.xls` 파일 읽기와 1개 시트 인식은 성공했으나 자동 거래 표 탐지에 실패함.
+- 직접 설정에서 실제 헤더 행과 컬럼을 선택한 뒤 정상 분석함.
+- 여러 통장 파일의 통합 필요와 일부 모바일 가계부 앱의 export 준비 어려움을 언급함.
 
 ### Quotes / paraphrases
 
 개인정보와 실제 재무정보를 제외하고 기록합니다.
 
-- (테스트 전)
+- 은행 파일만이 아니라 평소 관리하던 Excel·CSV도 사용할 수 있다는 안내가 필요하다는 취지의 의견.
 
 ### Issues
 
 각 항목은 `BUG / UX / COPY / COMPATIBILITY / FEATURE REQUEST / TRUST / VALUE` 중 하나로 분류하고, 필요하면 [`BETA_ISSUE_TEMPLATE.md`](./BETA_ISSUE_TEMPLATE.md) 링크를 추가합니다.
 
-- (테스트 전)
+- `COPY / UX`: 지원 가능한 파일 출처를 은행 파일로만 오해함 — Day 45 문구 수정.
+- `COMPATIBILITY / UX`: 실제 은행 `.xls` 자동 탐지 실패, 직접 설정 성공 — P2, Day 45 합성 회귀 추가 및 실제 원본 재검증 필요.
+- `FEATURE REQUEST / VALUE`: 여러 파일·통장 통합 분석 — 향후 후보, Day 45 구현 범위 밖.
+- `UX / COMPATIBILITY`: 일부 모바일 가계부 앱의 export 준비가 번거로움 — 샘플 우선 체험 안내 보강.
 
 ### Re-use intent
 

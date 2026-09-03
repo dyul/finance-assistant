@@ -27,9 +27,10 @@
 | 공개 샘플 | `.xlsx` | 분리 입금/출금, 헤더 1행 | PASS | production 샘플 자동 탐지·분석 확인 |
 | 공개 샘플 | `.csv` UTF-8 | 쉼표 구분, quoted 금액, 헤더 1행 | PASS | Excel 샘플과 합계·잔액·세 시나리오 결과 일치 자동 테스트 |
 | 생성 fixture | `.csv` UTF-8 BOM·CP949 | CRLF/LF, quoted comma·escaped quote | PASS | strict UTF-8와 WHATWG `euc-kr` fallback 테스트 |
-| 생성 fixture | `.csv` | 헤더 31행·100행 | MANUAL REQUIRED | 기존 직접 설정으로 복구, 101행은 지원 범위 밖 |
+| 생성 fixture | `.csv` | 헤더 31행·50행·100행 | PASS | 1~30행 실패 시 동일 기준으로 fallback 자동 탐지, 직접 설정도 유지하며 101행은 지원 범위 밖 |
 | 생성 fixture | `.xlsx` | 분리 입금/출금, 헤더 3행 | PASS | 지연 loader가 시트·헤더·행을 읽는 테스트 |
 | 생성 fixture | `.xls` | 분리 입금/출금, 헤더 3행 | PASS | legacy 형식 지연 loader 테스트 |
+| 생성 fixture | `.xlsx`·`.xls` | 39행 preamble 뒤 40행 `거래일시`·`적요`·분리 입출금·잔액 | PASS | 두 형식 모두 자동 탐지부터 합계·최신 잔액까지 합성 pipeline 검증 |
 | 생성 fixture | `.xlsx`·`.xls` | 1904 날짜 체계 숫자 셀 | PASS | 두 형식 날짜 파싱 회귀 테스트 |
 | 생성 fixture | `.xlsx` | cached formula result | PASS | 수식을 실행하지 않고 저장 결과값 사용 |
 | workbook fixture | 형식 비특정 | 다중 시트에서 거래 시트 선택 | PASS | 요약·메모·예상·백업 시트 제외 테스트 |
@@ -49,12 +50,13 @@
 | Participant | 출처 유형·은행명(선택) | 형식 | 대략적 크기·행 수 | 시트·헤더 | 입출금 구조 | 결과 | 자동/직접 설정 | Issue | 비고 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 익명 1 | 가계부 앱 export | `.csv` UTF-8 BOM | 약 800행 | 헤더 1행 | `수입/지출`+양수 금액 | PARTIAL | 자동 인식 수정 후 합성 회귀 검증 | 방향·설명 alias, 미래 거래 | 제공된 schema·aggregate만 사용했으며 미래 거래 3건·총지출 aggregate 회귀는 통과, 실제 원본 재실행은 확인 필요 |
+| 익명 Beta 관찰 | 은행 다운로드(은행명 미기록) | `.xls` | 미기록 | 1개 시트, 헤더에 `거래일시`·`적요` 확인 | 미기록 | PASS | 자동 실패 후 직접 설정 성공 | 자동 header/column detection 호환성 | parser와 계산은 성공했으며 Day 45 fallback 합성 회귀 후 실제 원본 자동 탐지 재검증 필요 |
 
 비고에는 식별 가능한 금융정보 대신 `헤더 12행`, `약 1,000행`, `잔액 컬럼 없음`, `날짜 오류 일부` 같은 구조 정보만 기록합니다.
 
 ## 현재 미검증 영역
 
-- 실제 은행·회계 프로그램이 내보낸 다양한 Excel·CSV 양식과 브라우저별 CP949/EUC-KR decoding
+- Day 45 수정 후 실제 관찰 은행 XLS 원본의 자동 탐지 재실행과 다양한 은행·회계 프로그램 양식
 - 수정된 가계부 CSV 호환성의 실제 원본 재실행과 기기별 대량 목록·모바일 상호작용
 - 실제 장기 누적 파일의 월별·분기별·연도별 전환과 기간말 잔액 수동 확인
 - 암호로 보호되거나 암호화된 파일

@@ -3,6 +3,26 @@ import { describe, expect, it } from "vitest";
 import { mapColumn, mapColumns } from "./columnMapper";
 
 describe("columnMapper", () => {
+  it("은행식 거래일시와 적요를 정확 별칭으로 인식한다", () => {
+    expect(mapColumn("거래일시")).toMatchObject({
+      standardName: "date",
+      confidence: "high",
+      matchStatus: "mapped",
+    });
+    expect(mapColumn("적요")).toMatchObject({
+      standardName: "description",
+      confidence: "high",
+      matchStatus: "mapped",
+    });
+  });
+
+  it.each(["조회일시", "다운로드일시", "출력일시"])(
+    "metadata 헤더 %s를 거래일로 오인식하지 않는다",
+    (header) => {
+      expect(mapColumn(header).standardName).toBe("unknown");
+    },
+  );
+
   it("구분과 입출금구분을 서로 다른 컬럼으로 매핑한다", () => {
     expect(mapColumn("구분")).toMatchObject({
       standardName: "category",

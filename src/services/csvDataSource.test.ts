@@ -183,15 +183,17 @@ describe("CSV header와 직접 설정 adapter", () => {
     expect(analyzeCsv(csvWithHeaderAt(30)).detection.headerRowIndex).toBe(29);
   });
 
-  it.each([31, 100])(
-    "%i행 헤더는 자동 탐지 후 기존 직접 설정으로 복구한다",
+  it.each([31, 50, 100])(
+    "%i행 헤더는 fallback 자동 탐지하며 기존 직접 설정도 유지한다",
     (headerRowNumber) => {
       const source = loadCsvDataSource(
         toArrayBuffer(csvWithHeaderAt(headerRowNumber)),
       );
       const headerRowIndex = headerRowNumber - 1;
 
-      expect(detectTransactionSheet(source.getSheetCandidates())).toBeNull();
+      expect(
+        detectTransactionSheet(source.getSheetCandidates()),
+      ).toMatchObject({ headerRowIndex });
 
       const preview = source.getPreview("CSV", headerRowIndex);
       const automaticMappings = mapColumns(preview.columns, preview.rows);

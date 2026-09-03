@@ -11,7 +11,8 @@ import {
   hasDuplicateColumnNames,
 } from "./worksheetColumns";
 
-export const MAX_HEADER_SCAN_ROWS = 30;
+export const PRIMARY_HEADER_SCAN_ROWS = 30;
+export const MAX_HEADER_SCAN_ROWS = 100;
 export const MAX_DATA_SAMPLE_ROWS = 50;
 
 export type SheetDetectionConfidence = "high" | "medium" | "low";
@@ -303,26 +304,21 @@ export function detectTransactionSheet(
   candidates: TransactionSheetCandidate[],
   options: DateNormalizationOptions = {},
 ): SheetDetectionResult | null {
-  const evaluations: HeaderEvaluation[] = [];
-
-  for (const candidate of candidates) {
-    const headerLimit = Math.min(
-      candidate.rows.length,
-      MAX_HEADER_SCAN_ROWS,
-    );
-
-    for (let headerRowIndex = 0; headerRowIndex < headerLimit; headerRowIndex += 1) {
-      const evaluation = evaluateHeaderCandidate(
-        candidate,
-        headerRowIndex,
-        options,
-      );
-
-      if (evaluation && evaluation.score >= 65) {
-        evaluations.push(evaluation);
-      }
-    }
-  }
+  const primaryEvaluations = collectHeaderEvaluations(
+    candidates,
+    0,
+    PRIMARY_HEADER_SCAN_ROWS,
+    options,
+  );
+  const evaluations =
+    primaryEvaluations.length > 0
+      ? primaryEvaluations
+      : collectHeaderEvaluations(
+          candidates,
+          PRIMARY_HEADER_SCAN_ROWS,
+          MAX_HEADER_SCAN_ROWS,
+          options,
+        );
 
   evaluations.sort(compareEvaluations);
   const selected = evaluations[0];
@@ -363,4 +359,38 @@ export function detectTransactionSheet(
     amountStructure: selected.amountStructure,
     ambiguous,
   };
+}
+
+function collectHeaderEvaluations(
+  candidates: TransactionSheetCandidate[],
+  startRowIndex: number,
+  endRowIndexExclusive: number,
+  options: DateNormalizationOptions,
+): HeaderEvaluation[] {
+  const evaluations: HeaderEvaluation[] = [];
+
+  for (const candidate of candidates) {
+    const headerLimit = Math.min(
+      candidate.rows.length,
+      endRowIndexExclusive,
+    );
+
+    for (
+      let headerRowIndex = startRowIndex;
+      headerRowIndex < headerLimit;
+      headerRowIndex += 1
+    ) {
+      const evaluation = evaluateHeaderCandidate(
+        candidate,
+        headerRowIndex,
+        options,
+      );
+
+      if (evaluation && evaluation.score >= 65) {
+        evaluations.push(evaluation);
+      }
+    }
+  }
+
+  return evaluations;
 }

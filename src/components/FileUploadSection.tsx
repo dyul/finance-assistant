@@ -57,7 +57,8 @@ export default function FileUploadSection({
           거래내역 파일 업로드
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          평소 사용하던 Excel 또는 CSV 거래내역을 올려주세요.
+          은행에서 받은 거래내역, 가계부 앱에서 내보낸 파일, 직접 관리하는
+          Excel 또는 CSV를 올려주세요.
         </p>
       </div>
 
@@ -74,7 +75,8 @@ export default function FileUploadSection({
             : "Excel / CSV 파일 선택"}
         </span>
         <span className="mt-1 text-sm text-slate-500">
-          .xlsx · .xls · .csv 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL}
+          .xlsx · .xls · .csv 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL} · 현재 한
+          번에 1개 파일
         </span>
         <input
           type="file"

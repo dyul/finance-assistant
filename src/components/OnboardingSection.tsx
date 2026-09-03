@@ -54,8 +54,9 @@ export default function OnboardingSection({
           3개월 현금흐름을 미리 확인하세요
         </h2>
         <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-          통장 거래내역 Excel 또는 CSV를 업로드하면 최근 입출금 흐름을 분석하고
-          향후 3개월 예상 잔액과 자금 부족 가능성을 확인할 수 있습니다.
+          은행에서 받은 거래내역, 가계부 앱에서 내보낸 파일, 직접 관리하는
+          Excel 또는 CSV를 업로드하면 최근 입출금 흐름과 향후 3개월 예상
+          잔액을 확인할 수 있습니다.
         </p>
       </div>
 
@@ -124,7 +125,7 @@ export default function OnboardingSection({
           샘플 CSV 다운로드
         </a>
         <p className="text-sm text-slate-500 sm:ml-1">
-          파일을 업로드하거나 샘플로 먼저 테스트해보세요.
+          파일이 없다면 샘플로 먼저 체험해보세요.
         </p>
       </div>
     </section>

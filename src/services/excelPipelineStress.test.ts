@@ -134,9 +134,13 @@ describe("Day 28 Excel 스트레스 입력", () => {
   it.each([
     [1, 0, true],
     [4, 3, true],
+    [10, 9, true],
     [20, 19, true],
     [30, 29, true],
-    [31, null, false],
+    [31, 30, true],
+    [50, 49, true],
+    [100, 99, true],
+    [101, null, false],
   ] as const)(
     "실제 헤더가 %i행이면 탐색 범위 정책에 맞게 처리한다",
     (headerRowNumber, expectedIndex, shouldDetect) => {
@@ -153,7 +157,7 @@ describe("Day 28 Excel 스트레스 입력", () => {
   );
 
   it.each([31, 100])(
-    "%i행 헤더는 자동 탐지 실패 후 수동 설정으로 안전하게 분석한다",
+    "%i행 헤더는 fallback 자동 탐지 후에도 직접 설정으로 안전하게 재분석한다",
     (headerRowNumber) => {
       const workbook = createWorkbook([
         { name: "거래내역", rows: rowsWithHeaderAt(headerRowNumber) },
@@ -171,7 +175,9 @@ describe("Day 28 Excel 스트레스 입력", () => {
         expenseColumn: "출금액",
       };
 
-      expect(detectTransactionSheet(workbook.getSheetCandidates())).toBeNull();
+      expect(
+        detectTransactionSheet(workbook.getSheetCandidates()),
+      ).toMatchObject({ headerRowIndex });
       expect(preview.columns).toEqual([
         "거래일",
         "적요",

@@ -50,6 +50,8 @@ describe("수동 매핑 패널", () => {
     expect(markup).toContain("상품판매");
     expect(markup).toContain("이 설정으로 분석");
     expect(markup).toContain("자동 인식으로 되돌리기");
+    expect(markup).toContain("거래 날짜와 금액 같은 항목명이 보이는 행");
+    expect(markup).toContain("거래일시 · 적요 · 출금액 · 입금액");
     expect(markup).toContain("101행 이후의 헤더는 지원 범위 밖입니다.");
   });
 

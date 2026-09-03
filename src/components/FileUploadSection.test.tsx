@@ -73,6 +73,10 @@ describe("파일 업로드 영역", () => {
     expect(markup).toContain("브라우저 저장소에 저장하지 않습니다");
     expect(markup).toContain("확정 예정 거래와 선택 예상 범위만");
     expect(markup).toContain("최대 10MB");
+    expect(markup).toContain("현재 한 번에 1개 파일");
+    expect(markup).toContain("은행에서 받은 거래내역");
+    expect(markup).toContain("가계부 앱에서 내보낸 파일");
+    expect(markup).toContain("직접 관리하는");
     expect(markup).toContain("자동 인식 확실도");
     expect(markup).toContain('class="sr-only"');
     expect(markup).toContain("focus-within:outline-blue-600");

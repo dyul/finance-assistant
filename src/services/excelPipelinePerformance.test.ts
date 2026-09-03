@@ -20,9 +20,16 @@ interface StressTiming {
   totalMs: number;
 }
 
-function createLargeWorkbook(rowCount: number) {
+function createLargeWorkbook(
+  rowCount: number,
+  headerRowNumber = 1,
+  includeUnrelatedSheets = false,
+) {
   let balance = 0;
   const rows: unknown[][] = [
+    ...Array.from({ length: headerRowNumber - 1 }, (_, index) => [
+      `안내 ${index + 1}`,
+    ]),
     ["거래일", "적요", "입금액", "출금액", "잔액"],
   ];
 
@@ -43,6 +50,20 @@ function createLargeWorkbook(rowCount: number) {
   }
 
   const source = XLSX.utils.book_new();
+
+  if (includeUnrelatedSheets) {
+    XLSX.utils.book_append_sheet(
+      source,
+      XLSX.utils.aoa_to_sheet([["안내"], ["조회일시"], ["2026-09-03"]]),
+      "안내",
+    );
+    XLSX.utils.book_append_sheet(
+      source,
+      XLSX.utils.aoa_to_sheet([["항목", "값"], ["총계", 1]]),
+      "요약",
+    );
+  }
+
   XLSX.utils.book_append_sheet(
     source,
     XLSX.utils.aoa_to_sheet(rows),
@@ -52,8 +73,16 @@ function createLargeWorkbook(rowCount: number) {
   return createExcelWorkbook(source);
 }
 
-function measurePipeline(rowCount: number): StressTiming {
-  const workbook = createLargeWorkbook(rowCount);
+function measurePipeline(
+  rowCount: number,
+  headerRowNumber = 1,
+  includeUnrelatedSheets = false,
+): StressTiming {
+  const workbook = createLargeWorkbook(
+    rowCount,
+    headerRowNumber,
+    includeUnrelatedSheets,
+  );
   const totalStart = performance.now();
   const detectionStart = performance.now();
   const detection = detectTransactionSheet(workbook.getSheetCandidates());
@@ -124,4 +153,17 @@ describe("Day 28 대용량 Excel 파이프라인 성능", () => {
     },
     20_000,
   );
+
+  it("10k 거래에서 30행 이내 성공과 31~100행 fallback 비용을 측정한다", () => {
+    const primary = measurePipeline(10_000, 30);
+    const fallback = measurePipeline(10_000, 100);
+    const multiSheetFallback = measurePipeline(10_000, 100, true);
+
+    console.info(
+      `[Day45 header scan] primary-30=${primary.detectionMs.toFixed(1)}ms, fallback-100=${fallback.detectionMs.toFixed(1)}ms, multi-sheet-fallback-100=${multiSheetFallback.detectionMs.toFixed(1)}ms`,
+    );
+    expect(primary.totalMs).toBeLessThan(10_000);
+    expect(fallback.totalMs).toBeLessThan(10_000);
+    expect(multiSheetFallback.totalMs).toBeLessThan(10_000);
+  }, 30_000);
 });

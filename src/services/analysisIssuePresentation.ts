@@ -101,7 +101,7 @@ export function createBlockingAnalysisIssue(
     return {
       id: kind,
       severity: "blocking",
-      title: "거래내역 시트를 자동으로 찾지 못했습니다.",
+      title: "거래내역 표를 자동으로 찾지 못했습니다.",
       description:
         "시트 이름, 헤더 위치 또는 거래일·금액 컬럼 구성이 자동 인식 기준과 달랐습니다.",
       impact: "아직 재무 요약과 향후 전망을 계산하지 않았습니다.",

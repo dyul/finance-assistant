@@ -21,10 +21,13 @@ describe("첫 화면 온보딩", () => {
     expect(markup).toContain("향후 3개월 전망");
     expect(markup).toContain("자금 부족 경고");
     expect(markup).toContain("예상 범위 비교");
-    expect(markup).toContain("최근 입출금 흐름을 분석하고");
-    expect(markup).toContain("향후 3개월 예상 잔액과 자금 부족 가능성");
+    expect(markup).toContain("최근 입출금 흐름과 향후 3개월 예상");
+    expect(markup).toContain("잔액을 확인할 수 있습니다");
     expect(markup).toContain("필요한 현금 여유(버퍼)");
     expect(markup).toContain("Excel 또는 CSV");
+    expect(markup).toContain("은행에서 받은 거래내역");
+    expect(markup).toContain("가계부 앱에서 내보낸 파일");
+    expect(markup).toContain("직접 관리하는");
     expect(markup).toContain("권장 파일 형식");
     expect(markup).toContain("입금액 · 출금액");
     expect(markup).toContain("금액 · 거래구분");
@@ -55,6 +58,7 @@ describe("첫 화면 온보딩", () => {
     expect(markup).toContain(`href="${SAMPLE_CSV_PATH}"`);
     expect(markup).toContain('download="finance-assistant-sample.csv"');
     expect(markup).toContain("샘플 CSV 다운로드");
+    expect(markup).toContain("파일이 없다면 샘플로 먼저 체험해보세요");
     expect(existsSync(sampleExcelPath)).toBe(true);
     expect(existsSync(sampleCsvPath)).toBe(true);
   });

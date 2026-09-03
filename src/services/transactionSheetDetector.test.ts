@@ -59,6 +59,39 @@ describe("detectTransactionSheet", () => {
     expect(result?.sheetName).toBe("거래내역");
   });
 
+  it("다중 시트에서도 31~100행 fallback으로 실제 거래 시트를 선택한다", () => {
+    const result = detectTransactionSheet([
+      candidate("안내", 0, [["조회일시"], ["2026-09-03"]]),
+      candidate("거래내역", 1, [
+        ...Array.from({ length: 39 }, () => []),
+        ...separateAmountRows(),
+      ]),
+    ]);
+
+    expect(result).toMatchObject({
+      sheetName: "거래내역",
+      sheetIndex: 1,
+      headerRowIndex: 39,
+    });
+  });
+
+  it("1~30행에서 기존 기준을 충족하면 31~100행을 우선 후보로 바꾸지 않는다", () => {
+    const rows: unknown[][] = [
+      ["거래일", "금액"],
+      ["2026-01-01", 500_000],
+      ...Array.from({ length: 37 }, () => []),
+      ["거래일", "적요", "입금액", "출금액", "잔액"],
+      ["2026-02-01", "상품판매", 900_000, "", 900_000],
+    ];
+
+    expect(
+      detectTransactionSheet([candidate("Sheet1", 0, rows)]),
+    ).toMatchObject({
+      headerRowIndex: 0,
+      confidence: "medium",
+    });
+  });
+
   it("상단 안내문 아래 4행에 있는 헤더를 찾는다", () => {
     const rows = [
       ["주식회사 예시"],
@@ -70,6 +103,36 @@ describe("detectTransactionSheet", () => {
     expect(
       detectTransactionSheet([candidate("Sheet1", 0, rows)]),
     ).toMatchObject({ headerRowIndex: 3 });
+  });
+
+  it("metadata의 거래일·잔액 문구를 건너뛰고 40행의 실제 은행 헤더를 찾는다", () => {
+    const rows = [
+      ["거래내역조회"],
+      ["조회 거래일: 2026-09-03", "현재 잔액: 1,000,000"],
+      ...Array.from({ length: 37 }, (_, index) => [`안내 ${index + 1}`]),
+      ["거래일시", "적요", "출금액", "입금액", "잔액"],
+      ["2026-09-01 09:00", "급여", "", 3_000_000, 3_500_000],
+      ["2026-09-02 12:00", "월세", 800_000, "", 2_700_000],
+    ];
+
+    expect(
+      detectTransactionSheet([candidate("Sheet1", 0, rows)]),
+    ).toMatchObject({
+      headerRowIndex: 39,
+      amountStructure: "separate",
+      confidence: "high",
+    });
+  });
+
+  it("잔액만 있는 metadata 행은 거래 표로 선택하지 않는다", () => {
+    expect(
+      detectTransactionSheet([
+        candidate("Sheet1", 0, [
+          ["현재 잔액"],
+          [1_000_000],
+        ]),
+      ]),
+    ).toBeNull();
   });
 
   it("이름만 거래내역인 빈 구조보다 완전한 Sheet1을 선택한다", () => {

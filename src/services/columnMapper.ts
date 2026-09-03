@@ -26,6 +26,7 @@ const COLUMN_KEYWORDS: Record<
   date: [
     "거래일",
     "거래일자",
+    "거래일시",
     "일자",
     "날짜",
     "작성일",
