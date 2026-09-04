@@ -270,6 +270,61 @@ describe("거래 날짜 처리 흐름", () => {
     expect(getLatestBalance(transactions)).toBe(0);
   });
 
+  it("동일 날짜의 explicit time으로 정방향과 역방향 정렬에서 같은 최신 잔액을 찾는다", () => {
+    const forwardRows = [
+      { date: "2026-09-03 13:35:10", balance: 900_000 },
+      { date: "2026-09-03 13:35:42", balance: 1_100_000 },
+    ];
+    const forward = parseTransactions(forwardRows).transactions;
+    const reverse = parseTransactions([...forwardRows].reverse()).transactions;
+
+    expect(forward.map((transaction) => transaction.time)).toEqual([
+      "13:35:10",
+      "13:35:42",
+    ]);
+    expect(getLatestBalance(forward)).toBe(1_100_000);
+    expect(getLatestBalance(reverse)).toBe(1_100_000);
+  });
+
+  it("다른 날짜를 먼저 비교하고 자정도 explicit time으로 처리한다", () => {
+    const transactions = parseTransactions([
+      { date: "2026-09-03 23:59", balance: 900_000 },
+      { date: "2026-09-04 00:00", balance: 1_000_000 },
+      { date: "2026-09-04 00:01", balance: 1_050_000 },
+    ]).transactions;
+
+    expect(getLatestBalance(transactions)).toBe(1_050_000);
+  });
+
+  it("시간이 하나라도 없으면 기존 source row 순서를 tie-break로 유지한다", () => {
+    const dateOnlyLast = parseTransactions([
+      { date: "2026-09-03 13:35", balance: 1_100_000 },
+      { date: "2026-09-03", balance: 950_000 },
+    ]).transactions;
+    const timedLast = parseTransactions([
+      { date: "2026-09-03", balance: 950_000 },
+      { date: "2026-09-03 09:10", balance: 900_000 },
+    ]).transactions;
+
+    expect(dateOnlyLast[1]).not.toHaveProperty("time");
+    expect(getLatestBalance(dateOnlyLast)).toBe(950_000);
+    expect(getLatestBalance(timedLast)).toBe(900_000);
+  });
+
+  it("exact timestamp는 기존 source row 순서를 따르고 최신 valid 잔액만 사용한다", () => {
+    const exactTimestamp = parseTransactions([
+      { date: "2026-09-03 13:35", balance: 1_000_000 },
+      { date: "2026-09-03 13:35", balance: 1_100_000 },
+    ]).transactions;
+    const latestBalanceMissing = parseTransactions([
+      { date: "2026-09-03 13:35", balance: 1_100_000 },
+      { date: "2026-09-03 14:00", balance: "" },
+    ]).transactions;
+
+    expect(getLatestBalance(exactTimestamp)).toBe(1_100_000);
+    expect(getLatestBalance(latestBalanceMissing)).toBe(1_100_000);
+  });
+
   it("유효한 날짜 거래가 없으면 최신 잔액을 null로 반환한다", () => {
     expect(
       getLatestBalance([

@@ -68,6 +68,45 @@ describe("Excel workbook 지연 로더", () => {
   );
 
   it.each(["xlsx", "xls"] as const)(
+    "%s 역정렬 파일에서도 동일 날짜의 가장 늦은 거래 시각 잔액을 찾는다",
+    async (bookType) => {
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.aoa_to_sheet([
+          ["거래일시", "적요", "입금액", "출금액", "거래후잔액"],
+          ["2026-09-03 13:35", "합성 입금", 200_000, "", 1_100_000],
+          ["2026-09-03 09:10", "합성 출금", "", 100_000, 900_000],
+        ]),
+        "거래내역",
+      );
+      const uploadedWorkbook = await loadExcelWorkbook(
+        XLSX.write(workbook, { bookType, type: "array" }),
+      );
+      const detection = detectTransactionSheet(
+        uploadedWorkbook.getSheetCandidates(),
+      );
+      const rows = uploadedWorkbook.getRows(
+        detection!.sheetName,
+        detection!.headerRowIndex,
+      );
+      const preview = uploadedWorkbook.getPreview(
+        detection!.sheetName,
+        detection!.headerRowIndex,
+      );
+      const parsed = parseTransactions(
+        standardizeTransactionRows(rows, mapColumns(preview.columns, rows)),
+      );
+
+      expect(parsed.transactions.map((transaction) => transaction.time)).toEqual([
+        "13:35:00",
+        "09:10:00",
+      ]);
+      expect(getLatestBalance(parsed.transactions)).toBe(1_100_000);
+    },
+  );
+
+  it.each(["xlsx", "xls"] as const)(
     "%s 은행식 합성 파일의 40행 헤더를 자동 탐지해 분석한다",
     async (bookType) => {
       const workbook = await loadExcelWorkbook(

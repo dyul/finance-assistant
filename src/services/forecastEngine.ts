@@ -3,6 +3,11 @@ import {
   type RecurringTransaction,
 } from "./recurringTransactionDetector";
 import type { Transaction } from "./transactionParser";
+import {
+  createTransactionChronologyCandidates,
+  createTransactionChronologyComparator,
+  type TransactionChronologyCandidate,
+} from "./transactionChronology";
 import type { ScheduledTransaction } from "./scheduledTransaction";
 import { getTrendAdjustedIncome } from "./incomeTrend";
 import {
@@ -69,21 +74,26 @@ function formatMonth(year: number, month: number): string {
 export function getLatestBalance(
   transactions: Transaction[],
 ): number | null {
-  let latestDate: string | null = null;
-  let latestBalance: number | null = null;
+  const candidates = createTransactionChronologyCandidates(
+    transactions,
+  ).filter(
+    ({ transaction }) =>
+      transaction.date !== null && transaction.balance !== null,
+  );
+  const compareChronology =
+    createTransactionChronologyComparator(candidates);
+  let latestCandidate: TransactionChronologyCandidate | null = null;
 
-  for (const transaction of transactions) {
-    if (transaction.date === null || transaction.balance === null) {
-      continue;
-    }
-
-    if (latestDate === null || transaction.date >= latestDate) {
-      latestDate = transaction.date;
-      latestBalance = transaction.balance;
+  for (const candidate of candidates) {
+    if (
+      latestCandidate === null ||
+      compareChronology(candidate, latestCandidate) >= 0
+    ) {
+      latestCandidate = candidate;
     }
   }
 
-  return latestBalance;
+  return latestCandidate?.transaction.balance ?? null;
 }
 
 export function generateCashFlowForecast(

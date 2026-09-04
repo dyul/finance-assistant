@@ -254,6 +254,18 @@ describe("CSV 공통 거래 분석 pipeline", () => {
     });
   });
 
+  it("역정렬 CSV에서도 동일 날짜의 가장 늦은 거래 시각 잔액을 찾는다", () => {
+    const result = analyzeCsv(
+      "거래일시,적요,입금액,출금액,거래후잔액\n2026-09-03 13:35,합성 입금,200000,,1100000\n2026-09-03 09:10,합성 출금,,100000,900000",
+    );
+
+    expect(result.parsed.transactions.map((transaction) => transaction.time)).toEqual([
+      "13:35:00",
+      "09:10:00",
+    ]);
+    expect(getLatestBalance(result.parsed.transactions)).toBe(1_100_000);
+  });
+
   it("금액+거래구분 구조를 기존 방향 parser에 연결한다", () => {
     const result = analyzeCsv(
       "거래일,적요,금액,거래구분,잔액\n2026-01-03,매출,500000,입금,500000\n2026-01-04,월세,300000,출금,200000",

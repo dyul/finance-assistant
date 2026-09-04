@@ -3,6 +3,12 @@ import {
   hasResolvedTransactionAmount,
   type Transaction,
 } from "./transactionParser";
+import {
+  createTransactionChronologyCandidates,
+  createTransactionChronologyComparator,
+  type TransactionChronologyCandidate,
+  type TransactionChronologyComparator,
+} from "./transactionChronology";
 
 export type HistoricalPeriodUnit = "monthly" | "quarterly" | "yearly";
 
@@ -53,7 +59,7 @@ interface PeriodAccumulator extends PeriodDescriptor {
   income: number;
   expense: number;
   closingBalance: number | null;
-  closingBalanceDate: NormalizedDate | null;
+  closingBalanceCandidate: TransactionChronologyCandidate | null;
   expenseCategories: Map<string, CategoryAccumulator>;
 }
 
@@ -127,7 +133,7 @@ function getOrCreateAccumulator(
     income: 0,
     expense: 0,
     closingBalance: null,
-    closingBalanceDate: null,
+    closingBalanceCandidate: null,
     expenseCategories: new Map(),
   };
   periodMap.set(descriptor.periodKey, created);
@@ -136,18 +142,21 @@ function getOrCreateAccumulator(
 
 function addTransactionToPeriod(
   accumulator: PeriodAccumulator,
-  transaction: Transaction,
+  candidate: TransactionChronologyCandidate,
+  compareChronology: TransactionChronologyComparator,
 ): void {
+  const { transaction } = candidate;
+
   if (transaction.date === null) {
     return;
   }
 
   if (
     transaction.balance !== null &&
-    (accumulator.closingBalanceDate === null ||
-      transaction.date >= accumulator.closingBalanceDate)
+    (accumulator.closingBalanceCandidate === null ||
+      compareChronology(candidate, accumulator.closingBalanceCandidate) >= 0)
   ) {
-    accumulator.closingBalanceDate = transaction.date;
+    accumulator.closingBalanceCandidate = candidate;
     accumulator.closingBalance = transaction.balance;
   }
 
@@ -229,8 +238,19 @@ export function aggregateHistoricalPeriods(
   let excludedInvalidDateCount = 0;
   let excludedInvalidDateIncome = 0;
   let excludedInvalidDateExpense = 0;
+  const candidates = createTransactionChronologyCandidates(
+    historicalTransactions,
+  );
+  const balanceCandidates = candidates.filter(
+    ({ transaction }) =>
+      transaction.date !== null && transaction.balance !== null,
+  );
+  const compareBalanceChronology =
+    createTransactionChronologyComparator(balanceCandidates);
 
-  for (const transaction of historicalTransactions) {
+  for (const candidate of candidates) {
+    const { transaction } = candidate;
+
     if (transaction.date === null) {
       if (hasResolvedTransactionAmount(transaction)) {
         excludedInvalidDateCount += 1;
@@ -250,7 +270,11 @@ export function aggregateHistoricalPeriods(
     for (const unit of ["monthly", "quarterly", "yearly"] as const) {
       const descriptor = getPeriodDescriptor(transaction.date, unit);
       const accumulator = getOrCreateAccumulator(periodMaps[unit], descriptor);
-      addTransactionToPeriod(accumulator, transaction);
+      addTransactionToPeriod(
+        accumulator,
+        candidate,
+        compareBalanceChronology,
+      );
     }
   }
 

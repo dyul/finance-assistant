@@ -133,6 +133,32 @@ describe("historical period aggregation", () => {
     expect(result.yearly[0]?.closingBalance).toBe(0);
   });
 
+  it("동일 날짜의 explicit time으로 정방향·역방향 모두 같은 월·분기·연도 마감 잔액을 만든다", () => {
+    const forwardRows = [
+      { date: "2025-03-31 09:10", income: 100, balance: 2_300_000 },
+      { date: "2025-03-31 13:35", expense: 50, balance: 2_250_000 },
+    ];
+
+    for (const rows of [forwardRows, [...forwardRows].reverse()]) {
+      const result = aggregateHistoricalPeriods(
+        parseTransactions(rows).transactions,
+      );
+
+      expect(result.monthly[0]).toMatchObject({
+        periodKey: "2025-03",
+        closingBalance: 2_250_000,
+      });
+      expect(result.quarterly[0]).toMatchObject({
+        periodKey: "2025-Q1",
+        closingBalance: 2_250_000,
+      });
+      expect(result.yearly[0]).toMatchObject({
+        periodKey: "2025",
+        closingBalance: 2_250_000,
+      });
+    }
+  });
+
   it("잔액 없는 파일은 null을 유지하고 직접 입력 잔액을 과거 값으로 역산하지 않는다", () => {
     const parsed = parseTransactions([
       { date: "2025-01-01", income: 1_000_000 },

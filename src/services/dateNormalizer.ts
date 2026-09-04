@@ -1,4 +1,10 @@
 export type NormalizedDate = `${number}-${number}-${number}`;
+export type NormalizedTime = `${number}:${number}:${number}`;
+
+export interface NormalizedTransactionDateTime {
+  date: NormalizedDate;
+  time: NormalizedTime | null;
+}
 
 export interface DateNormalizationOptions {
   date1904?: boolean;
@@ -19,6 +25,7 @@ export type DateNormalizationResult =
 const EXCEL_1900_MAX_EXCLUSIVE = 2_958_466;
 const EXCEL_1904_MAX_EXCLUSIVE = 2_957_004;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const SECONDS_PER_DAY = 24 * 60 * 60;
 
 function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -73,9 +80,23 @@ function formatDate(
   return `${yearText}-${monthText}-${dayText}` as NormalizedDate;
 }
 
-function isValidTimeSuffix(suffix: string): boolean {
+function formatTime(
+  hour: number,
+  minute: number,
+  second: number,
+): NormalizedTime {
+  const hourText = String(hour).padStart(2, "0");
+  const minuteText = String(minute).padStart(2, "0");
+  const secondText = String(second).padStart(2, "0");
+
+  return `${hourText}:${minuteText}:${secondText}` as NormalizedTime;
+}
+
+function normalizeTimeSuffix(
+  suffix: string,
+): { valid: true; time: NormalizedTime | null } | { valid: false } {
   if (suffix.trim() === "") {
-    return true;
+    return { valid: true, time: null };
   }
 
   const match = suffix.match(
@@ -83,7 +104,7 @@ function isValidTimeSuffix(suffix: string): boolean {
   );
 
   if (!match) {
-    return false;
+    return { valid: false };
   }
 
   const hour = Number(match[1]);
@@ -92,7 +113,7 @@ function isValidTimeSuffix(suffix: string): boolean {
   const timezoneHour = match[6] === undefined ? 0 : Number(match[6]);
   const timezoneMinute = match[7] === undefined ? 0 : Number(match[7]);
 
-  return (
+  const valid =
     hour >= 0 &&
     hour <= 23 &&
     minute >= 0 &&
@@ -102,14 +123,17 @@ function isValidTimeSuffix(suffix: string): boolean {
     timezoneHour >= 0 &&
     timezoneHour <= 23 &&
     timezoneMinute >= 0 &&
-    timezoneMinute <= 59
-  );
+    timezoneMinute <= 59;
+
+  return valid
+    ? { valid: true, time: formatTime(hour, minute, second) }
+    : { valid: false };
 }
 
 function normalizeExcelSerial(
   value: number,
   options: DateNormalizationOptions,
-): NormalizedDate | null {
+): NormalizedTransactionDateTime | null {
   const date1904 = options.date1904 === true;
   const maximum = date1904
     ? EXCEL_1904_MAX_EXCLUSIVE
@@ -144,10 +168,25 @@ function normalizeExcelSerial(
     return null;
   }
 
-  return formatDate(year, month, day);
+  const fraction = value - dateSerial;
+  const roundedSeconds = Math.round(fraction * SECONDS_PER_DAY);
+  const secondsSinceMidnight = Math.min(
+    SECONDS_PER_DAY - 1,
+    Math.max(0, roundedSeconds),
+  );
+  const hour = Math.floor(secondsSinceMidnight / 3600);
+  const minute = Math.floor((secondsSinceMidnight % 3600) / 60);
+  const second = secondsSinceMidnight % 60;
+
+  return {
+    date: formatDate(year, month, day),
+    time: fraction === 0 ? null : formatTime(hour, minute, second),
+  };
 }
 
-function normalizeDateObject(value: Date): NormalizedDate | null {
+function normalizeDateObject(
+  value: Date,
+): NormalizedTransactionDateTime | null {
   if (Number.isNaN(value.getTime())) {
     return null;
   }
@@ -160,10 +199,21 @@ function normalizeDateObject(value: Date): NormalizedDate | null {
     return null;
   }
 
-  return formatDate(year, month, day);
+  return {
+    date: formatDate(year, month, day),
+    time:
+      value.getHours() !== 0 ||
+      value.getMinutes() !== 0 ||
+      value.getSeconds() !== 0 ||
+      value.getMilliseconds() !== 0
+        ? formatTime(value.getHours(), value.getMinutes(), value.getSeconds())
+        : null,
+  };
 }
 
-function normalizeDateString(value: string): NormalizedDate | null {
+function normalizeDateString(
+  value: string,
+): NormalizedTransactionDateTime | null {
   const normalized = value.trim();
 
   if (!normalized) {
@@ -202,17 +252,22 @@ function normalizeDateString(value: string): NormalizedDate | null {
     return null;
   }
 
-  if (!isValidCalendarDate(year, month, day) || !isValidTimeSuffix(suffix)) {
+  const normalizedTime = normalizeTimeSuffix(suffix);
+
+  if (!isValidCalendarDate(year, month, day) || !normalizedTime.valid) {
     return null;
   }
 
-  return formatDate(year, month, day);
+  return {
+    date: formatDate(year, month, day),
+    time: normalizedTime.time,
+  };
 }
 
-function normalizeTransactionDateValue(
+function normalizeTransactionDateTimeValue(
   value: unknown,
   options: DateNormalizationOptions = {},
-): NormalizedDate | null {
+): NormalizedTransactionDateTime | null {
   if (typeof value === "number") {
     if (Number.isInteger(value)) {
       const compactDate = String(value);
@@ -264,12 +319,12 @@ export function normalizeTransactionDateResult(
   value: unknown,
   options: DateNormalizationOptions = {},
 ): DateNormalizationResult {
-  const normalizedDate = normalizeTransactionDateValue(value, options);
+  const normalizedDateTime = normalizeTransactionDateTimeValue(value, options);
 
-  if (normalizedDate !== null) {
+  if (normalizedDateTime !== null) {
     return {
       status: "valid",
-      value: normalizedDate,
+      value: normalizedDateTime.date,
       originalValue: value,
     };
   }
@@ -279,6 +334,13 @@ export function normalizeTransactionDateResult(
     originalValue: value,
     reason: getInvalidDateReason(value),
   };
+}
+
+export function normalizeTransactionDateTime(
+  value: unknown,
+  options: DateNormalizationOptions = {},
+): NormalizedTransactionDateTime | null {
+  return normalizeTransactionDateTimeValue(value, options);
 }
 
 export function normalizeTransactionDate(

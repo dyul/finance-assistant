@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { analyzeDataQuality } from "./dataQualityAnalyzer";
 import { createBlockingAnalysisIssue } from "./analysisIssuePresentation";
 import { calculateFinancialSummary } from "./financialEngine";
+import { getLatestBalance } from "./forecastEngine";
 import { mapColumns } from "./columnMapper";
 import {
   createExcelWorkbook,
@@ -144,6 +145,30 @@ describe("수동 시트·컬럼 매핑", () => {
       totalExpense: 700_000,
       netCashFlow: -200_000,
     });
+  });
+
+  it("수동 매핑한 역정렬 거래일시에서도 실제 최신 잔액을 찾는다", () => {
+    const workbook = createWorkbook([
+      ["일시값", "내용값", "받은돈", "나간돈", "잔액값"],
+      ["2026-09-03 13:35", "합성 입금", 200_000, "", 1_100_000],
+      ["2026-09-03 09:10", "합성 출금", "", 100_000, 900_000],
+    ]);
+    const parsed = analyzeManualMapping(workbook, {
+      sheetName: "Sheet1",
+      headerRowIndex: 0,
+      dateColumn: "일시값",
+      descriptionColumn: "내용값",
+      balanceColumn: "잔액값",
+      amountMode: "split",
+      incomeColumn: "받은돈",
+      expenseColumn: "나간돈",
+    });
+
+    expect(parsed.transactions.map((transaction) => transaction.time)).toEqual([
+      "13:35:00",
+      "09:10:00",
+    ]);
+    expect(getLatestBalance(parsed.transactions)).toBe(1_100_000);
   });
 
   it("수동 매핑 후에도 유효한 거래가 없으면 성공으로 판단하지 않는다", () => {

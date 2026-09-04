@@ -1,8 +1,9 @@
 import { classifyTransaction } from "./categoryClassifier";
 import {
-  normalizeTransactionDate,
+  normalizeTransactionDateTime,
   type DateNormalizationOptions,
   type NormalizedDate,
+  type NormalizedTime,
 } from "./dateNormalizer";
 import {
   hasSignedAmountEvidence,
@@ -16,6 +17,8 @@ import {
 
 export interface Transaction {
   date: NormalizedDate | null;
+  time?: NormalizedTime;
+  sourceRowIndex?: number;
   description: string;
   income: number | null;
   expense: number | null;
@@ -78,11 +81,12 @@ export function parseTransactions(
   let columnConflictCount = 0;
   const signedAmountEvidence = hasSignedAmountEvidence(rows);
 
-  for (const row of rows) {
+  for (const [sourceRowIndex, row] of rows.entries()) {
     const description = String(row.description ?? "");
     const classification = classifyTransaction(description);
 
-    const date = normalizeTransactionDate(row.date, options);
+    const normalizedDateTime = normalizeTransactionDateTime(row.date, options);
+    const date = normalizedDateTime?.date ?? null;
     const amountResolution = resolveTransactionAmount(
       row,
       signedAmountEvidence,
@@ -94,6 +98,7 @@ export function parseTransactions(
 
     const transaction: Transaction = {
       date,
+      sourceRowIndex,
       description,
       income: amountResolution.income,
       expense: amountResolution.expense,
@@ -105,6 +110,13 @@ export function parseTransactions(
       categoryName: classification.displayName,
       confidence: classification.confidence,
     };
+
+    if (
+      normalizedDateTime?.time !== null &&
+      normalizedDateTime?.time !== undefined
+    ) {
+      transaction.time = normalizedDateTime.time;
+    }
 
     if (isResolvedAmount(amountResolution)) {
       totalIncome += amountResolution.income;

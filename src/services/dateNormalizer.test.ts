@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeTransactionDate,
+  normalizeTransactionDateTime,
   normalizeTransactionDateResult,
 } from "./dateNormalizer";
 
@@ -86,6 +87,57 @@ describe("normalizeTransactionDate", () => {
       "2024-01-02",
     );
     expect(normalizeTransactionDate(new Date(Number.NaN))).toBeNull();
+    expect(normalizeTransactionDateTime(dateNearMidnight)).toEqual({
+      date: "2024-01-02",
+      time: "00:30:00",
+    });
+    expect(normalizeTransactionDateTime(new Date(2024, 0, 2))).toEqual({
+      date: "2024-01-02",
+      time: null,
+    });
+  });
+
+  it.each([
+    ["2026.09.03 09:05", "2026-09-03", "09:05:00"],
+    ["2026-09-03T13:35:42", "2026-09-03", "13:35:42"],
+    ["2026/09/03 00:00", "2026-09-03", "00:00:00"],
+    ["2026년 9월 3일 7:08:09", "2026-09-03", "07:08:09"],
+    ["2026-09-03 13:35:42+09:00", "2026-09-03", "13:35:42"],
+  ])(
+    "문자열 %s의 로컬 거래 시각을 UTC 변환 없이 보존한다",
+    (input, date, time) => {
+      expect(normalizeTransactionDateTime(input)).toEqual({ date, time });
+    },
+  );
+
+  it("날짜-only는 explicit time이 없음을 유지한다", () => {
+    expect(normalizeTransactionDateTime("2026-09-03")).toEqual({
+      date: "2026-09-03",
+      time: null,
+    });
+  });
+
+  it("Excel 일련번호의 소수부를 거래 시각으로 보존한다", () => {
+    expect(normalizeTransactionDateTime(45_292 + 8 / 24)).toEqual({
+      date: "2024-01-01",
+      time: "08:00:00",
+    });
+    expect(normalizeTransactionDateTime(45_292 + 13.5 / 24)).toEqual({
+      date: "2024-01-01",
+      time: "13:30:00",
+    });
+    expect(normalizeTransactionDateTime(45_292)).toEqual({
+      date: "2024-01-01",
+      time: null,
+    });
+  });
+
+  it.each([
+    "2026-09-03 24:00",
+    "2026-09-03 12:60",
+    "2026-09-03 12:30:60",
+  ])("잘못된 explicit time %s를 날짜 전체 오류로 처리한다", (input) => {
+    expect(normalizeTransactionDateTime(input)).toBeNull();
   });
 
   it.each([
