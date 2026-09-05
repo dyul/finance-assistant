@@ -1,7 +1,13 @@
+import type { FormEvent } from "react";
+
 import type { NormalizedDate } from "../services/dateNormalizer";
+import type {
+  HistoricalRangeAnalysis,
+  HistoricalRangeMode,
+  HistoricalRangeState,
+} from "../services/historicalRangeAnalyzer";
 import {
   isHistoricalPeriodInProgress,
-  type HistoricalPeriodAggregation,
   type HistoricalPeriodUnit,
 } from "../services/historicalPeriodAggregator";
 import { formatCurrency, formatSignedCurrency } from "../utils/formatters";
@@ -20,22 +26,37 @@ const PERIOD_UNIT_CONTENT: Record<
 };
 
 export interface HistoricalCashFlowSectionViewProps {
-  aggregation: HistoricalPeriodAggregation;
+  analysis: HistoricalRangeAnalysis;
+  rangeState: HistoricalRangeState;
   referenceDate: NormalizedDate;
   unit: HistoricalPeriodUnit;
   expanded: boolean;
+  onRangeModeChange: (mode: HistoricalRangeMode) => void;
+  onDraftStartDateChange: (value: string) => void;
+  onDraftEndDateChange: (value: string) => void;
+  onRangeApply: () => void;
   onUnitChange: (unit: HistoricalPeriodUnit) => void;
   onExpandedChange: (expanded: boolean) => void;
 }
 
+function formatDateLabel(date: NormalizedDate): string {
+  return date.replaceAll("-", ".");
+}
+
 export function HistoricalCashFlowSectionView({
-  aggregation,
+  analysis,
+  rangeState,
   referenceDate,
   unit,
   expanded,
+  onRangeModeChange,
+  onDraftStartDateChange,
+  onDraftEndDateChange,
+  onRangeApply,
   onUnitChange,
   onExpandedChange,
 }: HistoricalCashFlowSectionViewProps) {
+  const { aggregation } = analysis;
   const summaries = aggregation[unit];
   const visibleSummaries = getVisibleHistoricalPeriods(
     summaries,
@@ -47,6 +68,20 @@ export function HistoricalCashFlowSectionView({
   const visibleExpenseSummaries = visibleSummaries.filter(
     (summary) => summary.expense > 0,
   );
+  const rangeIncludesReferenceDate =
+    analysis.range === null ||
+    (analysis.range.startDate <= referenceDate &&
+      analysis.range.endDate >= referenceDate);
+  const appliedRangeLabel = analysis.range
+    ? `${formatDateLabel(analysis.range.startDate)} ~ ${formatDateLabel(analysis.range.endDate)}`
+    : analysis.dataRange
+      ? `${formatDateLabel(analysis.dataRange.startDate)} ~ ${formatDateLabel(analysis.dataRange.endDate)}`
+      : "날짜 확인 가능한 거래 없음";
+
+  function handleRangeSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onRangeApply();
+  }
 
   return (
     <section
@@ -65,8 +100,177 @@ export function HistoricalCashFlowSectionView({
         </p>
       </div>
 
+      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+        <p className="text-sm font-semibold text-slate-900">분석 기간</p>
+        <div
+          className="mt-2 grid grid-cols-2 gap-2 sm:inline-grid"
+          role="group"
+          aria-label="과거 현금흐름 분석 기간"
+        >
+          {(["all", "custom"] as const).map((mode) => {
+            const selected = rangeState.mode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={selected}
+                aria-controls="historical-range-controls historical-range-results"
+                onClick={() => onRangeModeChange(mode)}
+                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                  selected
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                }`}
+              >
+                {mode === "all" ? "전체 기간" : "직접 설정"}
+                {selected && <span className="sr-only"> (현재 선택)</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {rangeState.mode === "custom" && (
+          <form
+            id="historical-range-controls"
+            className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+            onSubmit={handleRangeSubmit}
+          >
+            <label className="min-w-0 text-sm font-medium text-slate-700">
+              시작일
+              <input
+                type="date"
+                value={rangeState.draftStartDate}
+                max={referenceDate}
+                aria-invalid={rangeState.error !== null}
+                aria-describedby={
+                  rangeState.error
+                    ? "historical-range-help historical-range-error"
+                    : "historical-range-help"
+                }
+                onChange={(event) => onDraftStartDateChange(event.target.value)}
+                className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+              />
+            </label>
+            <label className="min-w-0 text-sm font-medium text-slate-700">
+              종료일
+              <input
+                type="date"
+                value={rangeState.draftEndDate}
+                max={referenceDate}
+                aria-invalid={rangeState.error !== null}
+                aria-describedby={
+                  rangeState.error
+                    ? "historical-range-help historical-range-error"
+                    : "historical-range-help"
+                }
+                onChange={(event) => onDraftEndDateChange(event.target.value)}
+                className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
+            >
+              적용
+            </button>
+          </form>
+        )}
+
+        <p id="historical-range-help" className="mt-2 text-xs leading-5 text-slate-500">
+          {analysis.dataRange
+            ? `데이터 범위: ${formatDateLabel(analysis.dataRange.startDate)} ~ ${formatDateLabel(analysis.dataRange.endDate)}`
+            : "날짜를 확인할 수 있는 거래가 없습니다."}
+        </p>
+        {rangeState.error && (
+          <p
+            id="historical-range-error"
+            className="mt-2 text-sm font-medium text-red-700"
+            role="alert"
+          >
+            {rangeState.error}
+          </p>
+        )}
+      </div>
+
+      <div id="historical-range-results" className="mt-4" aria-live="polite">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <h4 className="font-semibold text-slate-900">
+            {analysis.range ? "선택 기간 요약" : "전체 기간 요약"}
+          </h4>
+          <p className="text-sm font-medium text-slate-600">
+            {appliedRangeLabel}
+          </p>
+        </div>
+
+        {analysis.isEmpty ? (
+          <p
+            className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-600"
+            role="status"
+          >
+            {analysis.range
+              ? "선택한 기간에 분석할 거래내역이 없습니다."
+              : "날짜를 확인할 수 있는 거래내역이 없습니다."}
+          </p>
+        ) : (
+          <>
+            <dl className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs text-slate-500">수입</dt>
+                <dd className="mt-1 font-semibold text-emerald-700">
+                  {formatCurrency(analysis.summary.income)}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs text-slate-500">지출</dt>
+                <dd className="mt-1 font-semibold text-red-700">
+                  {formatCurrency(analysis.summary.expense)}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs text-slate-500">순현금흐름</dt>
+                <dd
+                  className={`mt-1 font-semibold ${
+                    analysis.summary.netCashFlow >= 0
+                      ? "text-emerald-700"
+                      : "text-red-700"
+                  }`}
+                >
+                  {formatSignedCurrency(analysis.summary.netCashFlow)}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs text-slate-500">거래 건수</dt>
+                <dd className="mt-1 font-semibold text-slate-900">
+                  {analysis.summary.transactionCount.toLocaleString("ko-KR")}건
+                </dd>
+              </div>
+              <div className="col-span-2 rounded-lg border border-slate-200 p-3 lg:col-span-1">
+                <dt className="text-xs text-slate-500">기간말 잔액</dt>
+                <dd className="mt-1 font-semibold text-slate-900">
+                  {analysis.summary.closingBalance === null
+                    ? "—"
+                    : formatCurrency(analysis.summary.closingBalance)}
+                </dd>
+              </div>
+            </dl>
+            {analysis.topExpense && (
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                가장 큰 지출 카테고리: {analysis.topExpense.categoryName} {formatCurrency(analysis.topExpense.amount)} ({analysis.topExpense.shareOfExpense.toFixed(1)}%)
+              </p>
+            )}
+          </>
+        )}
+
+        {analysis.range && (
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            직접 설정한 기간에서는 선택 범위에 포함된 거래만 아래 월·분기·연도 표와 카테고리 분석에 집계합니다. Forecast·잔액 추이 그래프·PDF는 전체 분석 기준입니다.
+          </p>
+        )}
+      </div>
+
+      <p className="mt-4 text-sm font-semibold text-slate-900">집계 단위</p>
       <div
-        className="mt-4 grid grid-cols-3 gap-2 sm:inline-grid"
+        className="mt-2 grid grid-cols-3 gap-2 sm:inline-grid"
         role="group"
         aria-label="과거 현금흐름 기간 단위"
       >
@@ -105,7 +309,9 @@ export function HistoricalCashFlowSectionView({
           className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-600"
           role="status"
         >
-          날짜를 확인할 수 있는 거래가 없어 기간별 현금흐름을 표시할 수 없습니다.
+          {analysis.range
+            ? "선택한 기간에 분석할 거래내역이 없습니다."
+            : "날짜를 확인할 수 있는 거래가 없어 기간별 현금흐름을 표시할 수 없습니다."}
         </p>
       ) : (
         <>
@@ -135,7 +341,8 @@ export function HistoricalCashFlowSectionView({
                   <tr key={summary.periodKey}>
                     <td className="px-4 py-3 font-medium">
                       <span>{summary.label}</span>
-                      {isHistoricalPeriodInProgress(summary, referenceDate) && (
+                      {rangeIncludesReferenceDate &&
+                        isHistoricalPeriodInProgress(summary, referenceDate) && (
                         <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
                           진행 중
                         </span>

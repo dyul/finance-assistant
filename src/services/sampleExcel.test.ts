@@ -14,6 +14,7 @@ import {
 import { aggregateMonthly } from "./monthlyAggregator";
 import { aggregateHistoricalPeriods } from "./historicalPeriodAggregator";
 import { createCashBalanceTrendModel } from "./cashBalanceTrend";
+import { analyzeHistoricalRange } from "./historicalRangeAnalyzer";
 import { detectRecurringTransactions } from "./recurringTransactionDetector";
 import { detectTransactionSheet } from "./transactionSheetDetector";
 import { parseTransactions } from "./transactionParser";
@@ -62,6 +63,11 @@ describe("사용자용 샘플 Excel", () => {
       getLatestBalance(parsed.transactions),
     );
     const historicalPeriods = aggregateHistoricalPeriods(parsed.transactions);
+    const fullRange = analyzeHistoricalRange(
+      parsed.transactions,
+      null,
+      historicalPeriods,
+    );
     const startingBalance = {
       value: getLatestBalance(parsed.transactions),
       source: "file" as const,
@@ -102,6 +108,14 @@ describe("사용자용 샘플 Excel", () => {
     ).toEqual(expect.arrayContaining(["상품판매", "월세", "전기요금"]));
     expect(recurringTransactions).toHaveLength(3);
     expect(getLatestBalance(parsed.transactions)).toBe(-497_000);
+    expect(fullRange.summary).toEqual({
+      income: 2_850_000,
+      expense: 4_347_000,
+      netCashFlow: -1_497_000,
+      transactionCount: 10,
+      closingBalance: -497_000,
+    });
+    expect(fullRange.aggregation).toBe(historicalPeriods);
     expect(
       monthly.reduce((total, item) => total + item.income, 0),
     ).toBe(summary.totalIncome);

@@ -143,6 +143,11 @@ import {
   type HistoricalPeriodUnit,
 } from "../services/historicalPeriodAggregator";
 import { createCashBalanceTrendModel } from "../services/cashBalanceTrend";
+import {
+  analyzeHistoricalRange,
+  createInitialHistoricalRangeState,
+  historicalRangeReducer,
+} from "../services/historicalRangeAnalyzer";
 
 interface AmountWarningCounts {
   invalidAmountCount: number;
@@ -306,6 +311,11 @@ export default function UploadArea() {
     useState<HistoricalPeriodUnit>("monthly");
   const [historicalPeriodsExpanded, setHistoricalPeriodsExpanded] =
     useState(false);
+  const [historicalRangeState, dispatchHistoricalRange] = useReducer(
+    historicalRangeReducer,
+    undefined,
+    createInitialHistoricalRangeState,
+  );
 
   const [scheduledTransactions, setScheduledTransactions] = useState<
     ScheduledTransaction[]
@@ -346,6 +356,19 @@ export default function UploadArea() {
   const historicalPeriodAggregation = useMemo(
     () => aggregateHistoricalPeriods(analysisTransactions),
     [analysisTransactions],
+  );
+  const historicalRangeAnalysis = useMemo(
+    () =>
+      analyzeHistoricalRange(
+        analysisTransactions,
+        historicalRangeState.appliedRange,
+        historicalPeriodAggregation,
+      ),
+    [
+      analysisTransactions,
+      historicalPeriodAggregation,
+      historicalRangeState.appliedRange,
+    ],
   );
   const fileLatestBalance = useMemo(
     () => getLatestBalance(analysisTransactions),
@@ -525,6 +548,7 @@ export default function UploadArea() {
     setInsights([]);
     setHistoricalPeriodUnit("monthly");
     setHistoricalPeriodsExpanded(false);
+    dispatchHistoricalRange({ type: "reset" });
     setAmountWarningCounts({
       invalidAmountCount: 0,
       unknownDirectionCount: 0,
@@ -554,6 +578,7 @@ export default function UploadArea() {
     setInsights([]);
     setHistoricalPeriodUnit("monthly");
     setHistoricalPeriodsExpanded(false);
+    dispatchHistoricalRange({ type: "reset" });
     setScheduledTransactions([]);
     dispatchFutureSourceSelection({ type: "newFile" });
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
@@ -623,6 +648,7 @@ export default function UploadArea() {
     dispatchFutureSourceSelection({ type: "fileSettingsReset" });
     setSelectedScenario(DEFAULT_FORECAST_SCENARIO);
     dispatchManualBalance({ type: "fileSettingsReset" });
+    dispatchHistoricalRange({ type: "reset" });
     setSessionStorageAvailable(cleared);
   }
 
@@ -1272,10 +1298,28 @@ export default function UploadArea() {
 
       {summary && (
         <HistoricalCashFlowSectionView
-          aggregation={historicalPeriodAggregation}
+          analysis={historicalRangeAnalysis}
+          rangeState={historicalRangeState}
           referenceDate={analysisReferenceDate}
           unit={historicalPeriodUnit}
           expanded={historicalPeriodsExpanded}
+          onRangeModeChange={(mode) => {
+            dispatchHistoricalRange({ type: "selectMode", mode });
+            setHistoricalPeriodsExpanded(false);
+          }}
+          onDraftStartDateChange={(value) =>
+            dispatchHistoricalRange({ type: "setDraftStartDate", value })
+          }
+          onDraftEndDateChange={(value) =>
+            dispatchHistoricalRange({ type: "setDraftEndDate", value })
+          }
+          onRangeApply={() => {
+            dispatchHistoricalRange({
+              type: "apply",
+              maximumDate: analysisReferenceDate,
+            });
+            setHistoricalPeriodsExpanded(false);
+          }}
           onUnitChange={(unit) => {
             setHistoricalPeriodUnit(unit);
             setHistoricalPeriodsExpanded(false);
@@ -1290,10 +1334,15 @@ export default function UploadArea() {
         />
       )}
 
-      {categorySummaries.length > 0 && (
+      {(historicalRangeState.appliedRange
+        ? historicalRangeAnalysis.categorySummaries
+        : categorySummaries
+      ).length > 0 && (
         <div className="mt-6">
           <h3 className="mb-3 font-semibold text-slate-900">
-            카테고리별 지출 분석
+            {historicalRangeState.appliedRange
+              ? "선택 기간 카테고리별 지출 분석"
+              : "카테고리별 지출 분석"}
           </h3>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -1309,7 +1358,10 @@ export default function UploadArea() {
               </thead>
 
               <tbody>
-                {categorySummaries.map((item) => (
+                {(historicalRangeState.appliedRange
+                  ? historicalRangeAnalysis.categorySummaries
+                  : categorySummaries
+                ).map((item) => (
                   <tr
                     key={item.category}
                     className="border-t border-slate-200"

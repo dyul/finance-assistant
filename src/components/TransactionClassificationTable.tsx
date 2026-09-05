@@ -105,6 +105,9 @@ export default function TransactionClassificationTable({
         전체 {transactions.length.toLocaleString("ko-KR")}건 중{" "}
         {visibleRows.length.toLocaleString("ko-KR")}건 표시
       </p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">
+        기간 설정과 관계없이 날짜·금액 확인이 필요한 거래를 포함한 전체 파일 기준입니다.
+      </p>
       {hasReviewRowsOutsideBase && (
         <p className="mt-1 text-xs leading-5 text-amber-700">
           확인이 필요한 거래는 현재 표시 범위 밖에 있어도 함께 표시합니다.
