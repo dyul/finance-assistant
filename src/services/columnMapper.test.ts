@@ -25,7 +25,7 @@ describe("columnMapper", () => {
 
   it("구분과 입출금구분을 서로 다른 컬럼으로 매핑한다", () => {
     expect(mapColumn("구분")).toMatchObject({
-      standardName: "category",
+      standardName: "sourceCategory",
       confidence: "high",
       matchStatus: "mapped",
     });
@@ -61,9 +61,13 @@ describe("columnMapper", () => {
     ]);
   });
 
-  it("분류와 하위 분류를 방향이나 금액으로 오인식하지 않는다", () => {
+  it("분류와 하위 분류를 서로 다른 원본 metadata로 보존한다", () => {
+    expect(mapColumn("분류").standardName).toBe("sourceCategory");
+    expect(mapColumn("하위 분류").standardName).toBe(
+      "sourceSubcategory",
+    );
+
     for (const header of ["분류", "하위 분류"]) {
-      expect(mapColumn(header).standardName).toBe("category");
       expect(mapColumn(header).standardName).not.toBe("direction");
       expect(mapColumn(header).standardName).not.toBe("amount");
     }
@@ -148,7 +152,7 @@ describe("columnMapper", () => {
 
     expect(
       mappings.find((mapping) => mapping.originalName === "구분"),
-    ).toMatchObject({ standardName: "category" });
+    ).toMatchObject({ standardName: "sourceCategory" });
   });
 
   it("일반 구분 헤더에 일부 방향값이 있으면 알 수 없는 행도 검증할 수 있게 방향으로 매핑한다", () => {

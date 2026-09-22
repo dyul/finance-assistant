@@ -14,6 +14,7 @@ function futureTransaction(
     date: `2026-${String(9 + (index % 3)).padStart(2, "0")}-10` as FutureSourceTransaction["date"],
     description: `합성 미래 거래 ${index}`,
     category: "other",
+    financialNature: "ordinary",
     type: "expense",
     amount: 10_000,
     recurringKey: `key-${index}`,

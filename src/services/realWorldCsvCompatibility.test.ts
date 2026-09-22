@@ -74,6 +74,21 @@ describe("실사용 가계부 CSV 구조 호환성", () => {
       "합성 매출",
       "합성 비용",
     ]);
+    expect(
+      parsed.transactions.map(({ sourceCategory, sourceSubcategory }) => ({
+        sourceCategory,
+        sourceSubcategory,
+      })),
+    ).toEqual([
+      {
+        sourceCategory: "합성 분류",
+        sourceSubcategory: "합성 하위",
+      },
+      {
+        sourceCategory: "합성 분류",
+        sourceSubcategory: "합성 하위",
+      },
+    ]);
     expect(summary).toMatchObject({
       totalIncome: 500_000,
       totalExpense: 300_000,

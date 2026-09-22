@@ -277,6 +277,9 @@ describe("사용자 Forecast 설정 저장", () => {
     const unsafeScheduledTransaction = {
       ...income,
       originalExcelRow: { accountNumber: "저장하면 안 되는 원본 값" },
+      sourceCategory: "저장하면 안 되는 원본 분류",
+      sourceSubcategory: "저장하면 안 되는 원본 하위 분류",
+      financialNature: "savings",
     };
     const unsafeFileSession: UserFileSession & {
       transactions: Array<{ description: string }>;
@@ -324,6 +327,10 @@ describe("사용자 Forecast 설정 저장", () => {
     expect(payload).not.toContain("expectedEndingBalance");
     expect(payload).not.toContain("originalExcelRow");
     expect(payload).not.toContain("저장하면 안 되는 원본 값");
+    expect(payload).not.toContain("sourceCategory");
+    expect(payload).not.toContain("sourceSubcategory");
+    expect(payload).not.toContain("financialNature");
+    expect(payload).not.toContain("저장하면 안 되는 원본 분류");
     expect(payload).not.toContain("manualMapping");
     expect(payload).not.toContain("financialSummary");
     expect(payload).not.toContain("totalIncome");

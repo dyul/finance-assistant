@@ -8,7 +8,8 @@ export type StandardColumn =
   | "amount"
   | "direction"
   | "balance"
-  | "category"
+  | "sourceCategory"
+  | "sourceSubcategory"
   | "unknown";
 
 export interface ColumnMapping {
@@ -100,7 +101,7 @@ const COLUMN_KEYWORDS: Record<
     "remainingbalance",
   ],
 
-  category: [
+  sourceCategory: [
     "분류",
     "구분",
     "항목",
@@ -108,6 +109,14 @@ const COLUMN_KEYWORDS: Record<
     "계정과목",
     "category",
     "account",
+  ],
+
+  sourceSubcategory: [
+    "하위 분류",
+    "하위분류",
+    "세부분류",
+    "서브카테고리",
+    "subcategory",
   ],
 };
 
@@ -119,7 +128,8 @@ const DISPLAY_NAMES: Record<StandardColumn, string> = {
   amount: "금액",
   direction: "입출금 구분",
   balance: "잔액",
-  category: "분류",
+  sourceCategory: "원본 분류",
+  sourceSubcategory: "원본 하위 분류",
   unknown: "미분류",
 };
 

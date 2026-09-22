@@ -2,6 +2,7 @@ import {
   hasResolvedTransactionAmount,
   type Transaction,
 } from "./transactionParser";
+import { getTransactionDisplayCategory } from "./transactionDisplayCategory";
 
 export interface CategorySummary {
   category: string;
@@ -52,4 +53,43 @@ export function aggregateExpensesByCategory(
   }
 
   return summaries.sort((a, b) => b.amount - a.amount);
+}
+
+export function aggregateExpensesByDisplayCategory(
+  transactions: Transaction[],
+): CategorySummary[] {
+  const expenseTransactions = transactions
+    .filter(hasResolvedTransactionAmount)
+    .filter((transaction) => transaction.expense > 0);
+  const totalExpense = expenseTransactions.reduce(
+    (sum, transaction) => sum + transaction.expense,
+    0,
+  );
+  const categoryMap = new Map<string, CategorySummary>();
+
+  for (const transaction of expenseTransactions) {
+    const displayCategory = getTransactionDisplayCategory(transaction);
+    const existing = categoryMap.get(displayCategory.category);
+
+    if (existing) {
+      existing.amount += transaction.expense;
+      existing.transactionCount += 1;
+    } else {
+      categoryMap.set(displayCategory.category, {
+        ...displayCategory,
+        amount: transaction.expense,
+        transactionCount: 1,
+        shareOfExpense: 0,
+      });
+    }
+  }
+
+  const summaries = Array.from(categoryMap.values());
+
+  for (const summary of summaries) {
+    summary.shareOfExpense =
+      totalExpense > 0 ? (summary.amount / totalExpense) * 100 : 0;
+  }
+
+  return summaries.sort((first, second) => second.amount - first.amount);
 }

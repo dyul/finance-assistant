@@ -14,6 +14,11 @@ import {
   type AmountStatus,
   type OriginalAmountValues,
 } from "./amountNormalizer";
+import {
+  classifyTransactionNature,
+  type FinancialNature,
+  type TransactionCashDirection,
+} from "./financialNatureClassifier";
 
 export interface Transaction {
   date: NormalizedDate | null;
@@ -26,9 +31,12 @@ export interface Transaction {
   amountSource: AmountSource;
   originalAmountValues: OriginalAmountValues;
   balance: number | null;
+  sourceCategory?: string;
+  sourceSubcategory?: string;
   category: string;
   categoryName: string;
   confidence: "high" | "medium" | "low";
+  financialNature: FinancialNature;
 }
 
 export interface ParsedTransactionResult {
@@ -65,6 +73,32 @@ function parseBalance(value: unknown): number | null {
   return parsed.kind === "valid" ? parsed.value : null;
 }
 
+function parseOptionalSourceMetadata(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  const parsed = String(value).trim();
+  return parsed === "" ? undefined : parsed;
+}
+
+function resolveCashDirection(
+  income: number | null,
+  expense: number | null,
+): TransactionCashDirection {
+  if (income !== null && expense !== null) {
+    if (income > 0 && expense === 0) {
+      return "income";
+    }
+
+    if (expense > 0 && income === 0) {
+      return "expense";
+    }
+  }
+
+  return "unknown";
+}
+
 export function parseTransactions(
   rows: Record<string, unknown>[],
   options: DateNormalizationOptions = {},
@@ -84,6 +118,10 @@ export function parseTransactions(
   for (const [sourceRowIndex, row] of rows.entries()) {
     const description = String(row.description ?? "");
     const classification = classifyTransaction(description);
+    const sourceCategory = parseOptionalSourceMetadata(row.sourceCategory);
+    const sourceSubcategory = parseOptionalSourceMetadata(
+      row.sourceSubcategory,
+    );
 
     const normalizedDateTime = normalizeTransactionDateTime(row.date, options);
     const date = normalizedDateTime?.date ?? null;
@@ -106,9 +144,20 @@ export function parseTransactions(
       amountSource: amountResolution.amountSource,
       originalAmountValues: amountResolution.originalAmountValues,
       balance: parseBalance(row.balance),
+      ...(sourceCategory ? { sourceCategory } : {}),
+      ...(sourceSubcategory ? { sourceSubcategory } : {}),
       category: classification.category,
       categoryName: classification.displayName,
       confidence: classification.confidence,
+      financialNature: classifyTransactionNature({
+        description,
+        direction: resolveCashDirection(
+          amountResolution.income,
+          amountResolution.expense,
+        ),
+        sourceCategory,
+        sourceSubcategory,
+      }),
     };
 
     if (

@@ -48,6 +48,7 @@ import {
 
 import {
   aggregateExpensesByCategory,
+  aggregateExpensesByDisplayCategory,
   type CategorySummary,
 } from "../services/categoryAggregator";
 
@@ -353,6 +354,10 @@ export default function UploadArea() {
     () => detectRecurringTransactions(analysisTransactions),
     [analysisTransactions],
   );
+  const displayCategorySummaries = useMemo(
+    () => aggregateExpensesByDisplayCategory(analysisTransactions),
+    [analysisTransactions],
+  );
   const historicalPeriodAggregation = useMemo(
     () => aggregateHistoricalPeriods(analysisTransactions),
     [analysisTransactions],
@@ -370,6 +375,9 @@ export default function UploadArea() {
       historicalRangeState.appliedRange,
     ],
   );
+  const presentedCategorySummaries = historicalRangeState.appliedRange
+    ? historicalRangeAnalysis.categorySummaries
+    : displayCategorySummaries;
   const fileLatestBalance = useMemo(
     () => getLatestBalance(analysisTransactions),
     [analysisTransactions],
@@ -1334,16 +1342,16 @@ export default function UploadArea() {
         />
       )}
 
-      {(historicalRangeState.appliedRange
-        ? historicalRangeAnalysis.categorySummaries
-        : categorySummaries
-      ).length > 0 && (
+      {presentedCategorySummaries.length > 0 && (
         <div className="mt-6">
-          <h3 className="mb-3 font-semibold text-slate-900">
+          <h3 className="font-semibold text-slate-900">
             {historicalRangeState.appliedRange
               ? "선택 기간 카테고리별 지출 분석"
               : "카테고리별 지출 분석"}
           </h3>
+          <p className="mb-3 mt-1 text-xs leading-5 text-slate-500">
+            저축·투자·대출·내부이체도 실제 계좌에서 입출금된 금액이므로 현재 파일의 현금흐름 합계에 포함됩니다.
+          </p>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full min-w-[600px] text-sm">
@@ -1358,10 +1366,7 @@ export default function UploadArea() {
               </thead>
 
               <tbody>
-                {(historicalRangeState.appliedRange
-                  ? historicalRangeAnalysis.categorySummaries
-                  : categorySummaries
-                ).map((item) => (
+                {presentedCategorySummaries.map((item) => (
                   <tr
                     key={item.category}
                     className="border-t border-slate-200"
@@ -1502,7 +1507,7 @@ export default function UploadArea() {
           analysis={selectedAnalysis}
           selectedScenario={selectedScenario}
           actionGuideItems={actionGuideItems}
-          categorySummaries={categorySummaries}
+          categorySummaries={displayCategorySummaries}
           futureSourceForecastScope={futureSourceForecastScope}
         />
       )}

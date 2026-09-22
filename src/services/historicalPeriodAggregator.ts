@@ -9,6 +9,7 @@ import {
   type TransactionChronologyCandidate,
   type TransactionChronologyComparator,
 } from "./transactionChronology";
+import { getTransactionDisplayCategory } from "./transactionDisplayCategory";
 
 export type HistoricalPeriodUnit = "monthly" | "quarterly" | "yearly";
 
@@ -172,17 +173,18 @@ function addTransactionToPeriod(
     return;
   }
 
+  const displayCategory = getTransactionDisplayCategory(transaction);
   const existingCategory = accumulator.expenseCategories.get(
-    transaction.category,
+    displayCategory.category,
   );
   if (existingCategory) {
     existingCategory.amount += transaction.expense;
     return;
   }
 
-  accumulator.expenseCategories.set(transaction.category, {
-    category: transaction.category,
-    categoryName: transaction.categoryName,
+  accumulator.expenseCategories.set(displayCategory.category, {
+    category: displayCategory.category,
+    categoryName: displayCategory.categoryName,
     amount: transaction.expense,
   });
 }

@@ -47,7 +47,8 @@ const DISPLAY_NAMES: Record<StandardColumn, string> = {
   amount: "금액",
   direction: "입출금 구분",
   balance: "잔액",
-  category: "분류",
+  sourceCategory: "원본 분류",
+  sourceSubcategory: "원본 하위 분류",
   unknown: "미분류",
 };
 

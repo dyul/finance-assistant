@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import type { NormalizedDate } from "../services/dateNormalizer";
 import type { Transaction } from "../services/transactionParser";
+import { getTransactionDisplayCategory } from "../services/transactionDisplayCategory";
 import { formatCurrency } from "../utils/formatters";
 import {
   TRANSACTION_DISPLAY_PAGE_SIZE,
@@ -127,39 +128,44 @@ export default function TransactionClassificationTable({
           </thead>
 
           <tbody>
-            {visibleRows.map(({ transaction, sourceIndex }) => (
-              <tr
-                key={`${transaction.date}-${transaction.description}-${sourceIndex}`}
-                className="border-t border-slate-200"
-                data-transaction-row={sourceIndex}
-              >
-                <td className="px-4 py-3">
-                  <TransactionDateValue date={transaction.date} />
-                </td>
+            {visibleRows.map(({ transaction, sourceIndex }) => {
+              const displayCategory =
+                getTransactionDisplayCategory(transaction);
 
-                <td className="px-4 py-3">
-                  {transaction.description}
+              return (
+                <tr
+                  key={`${transaction.date}-${transaction.description}-${sourceIndex}`}
+                  className="border-t border-slate-200"
+                  data-transaction-row={sourceIndex}
+                >
+                  <td className="px-4 py-3">
+                    <TransactionDateValue date={transaction.date} />
+                  </td>
 
-                  {transaction.amountStatus === "columnConflict" && (
-                    <p className="mt-1 text-xs font-medium text-amber-700">
-                      단일 금액과 불일치 — 분리 컬럼 적용
-                    </p>
-                  )}
+                  <td className="px-4 py-3">
+                    {transaction.description}
 
-                  {transaction.amountStatus === "directionOverride" && (
-                    <p className="mt-1 text-xs font-medium text-amber-700">
-                      금액 부호와 불일치 — 입출금 구분 적용
-                    </p>
-                  )}
-                </td>
+                    {transaction.amountStatus === "columnConflict" && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        단일 금액과 불일치 — 분리 컬럼 적용
+                      </p>
+                    )}
 
-                <td className="px-4 py-3">
-                  {transaction.categoryName}
-                </td>
+                    {transaction.amountStatus === "directionOverride" && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        금액 부호와 불일치 — 입출금 구분 적용
+                      </p>
+                    )}
+                  </td>
 
-                <TransactionAmountCells {...transaction} />
-              </tr>
-            ))}
+                  <td className="px-4 py-3">
+                    {displayCategory.categoryName}
+                  </td>
+
+                  <TransactionAmountCells {...transaction} />
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -3,6 +3,7 @@ import { createRecurringTransactionKey } from "./recurringTransactionDetector";
 import type { ScheduledTransaction } from "./scheduledTransaction";
 import { isFutureDatedTransaction } from "./transactionDateScope";
 import type { Transaction } from "./transactionParser";
+import type { FinancialNature } from "./financialNatureClassifier";
 
 export interface FutureSourceTransaction {
   id: string;
@@ -10,6 +11,7 @@ export interface FutureSourceTransaction {
   date: NormalizedDate;
   description: string;
   category: string;
+  financialNature: FinancialNature;
   type: "income" | "expense";
   amount: number;
   recurringKey: string;
@@ -106,6 +108,7 @@ export function createFutureSourceTransactions(
         date: transaction.date,
         description: transaction.description,
         category: transaction.category,
+        financialNature: transaction.financialNature,
         type: direction.type,
         amount: direction.amount,
         recurringKey,

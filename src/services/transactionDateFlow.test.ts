@@ -33,6 +33,7 @@ function createTransaction(
     category: "other",
     categoryName: "기타",
     confidence: "low",
+    financialNature: "ordinary",
     ...overrides,
   };
 }

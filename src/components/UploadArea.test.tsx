@@ -365,6 +365,29 @@ function createSyntheticTransactions(count: number) {
 }
 
 describe("대량 거래 자동 분류 표시", () => {
+  it("기존 분류 열에서 금융성 거래 표시명을 보여주고 열을 추가하지 않는다", () => {
+    const transactions = parseTransactions([
+      {
+        date: "2026-01-10",
+        description: "정기적금 납입",
+        amount: 500_000,
+        direction: "지출",
+        sourceSubcategory: "적금",
+      },
+    ]).transactions;
+    const markup = renderToStaticMarkup(
+      <TransactionClassificationTable
+        transactions={transactions}
+        referenceDate="2026-08-19"
+      />,
+    );
+
+    expect(markup).toContain("저축/적금");
+    expect(markup).not.toContain(">기타<");
+    expect(markup.match(/<th /g)).toHaveLength(5);
+    expect(markup).toContain("overflow-x-auto");
+  });
+
   it("823건 중 기본 50건만 기존 순서로 표시한다", () => {
     const transactions = createSyntheticTransactions(823);
     const markup = renderToStaticMarkup(

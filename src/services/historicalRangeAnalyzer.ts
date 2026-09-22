@@ -1,4 +1,7 @@
-import { aggregateExpensesByCategory, type CategorySummary } from "./categoryAggregator";
+import {
+  aggregateExpensesByDisplayCategory,
+  type CategorySummary,
+} from "./categoryAggregator";
 import { normalizeTransactionDate, type NormalizedDate } from "./dateNormalizer";
 import { calculateFinancialSummary } from "./financialEngine";
 import {
@@ -188,7 +191,8 @@ export function analyzeHistoricalRange(
             transaction.date <= range.endDate,
         );
   const financialSummary = calculateFinancialSummary(transactions);
-  const categorySummaries = aggregateExpensesByCategory(transactions);
+  const categorySummaries =
+    aggregateExpensesByDisplayCategory(transactions);
   const aggregation =
     range === null && fullRangeAggregation !== undefined
       ? fullRangeAggregation

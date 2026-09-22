@@ -415,6 +415,9 @@ export default function AnalysisReport({
             데이터 오류로 제외된 거래가 있으면 분석 결과와 전체 합계가
             달라질 수 있습니다.
           </li>
+          <li>
+            저축·투자·대출·내부이체도 업로드한 파일에서 확인되는 실제 입출금이므로 현금흐름 합계에 포함됩니다.
+          </li>
           {forecastStartingBalanceSource === "manual" && (
             <li>
               전망 시작 잔액은 사용자가 직접 입력한 값이며 과거 입출금

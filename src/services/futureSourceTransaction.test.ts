@@ -43,6 +43,7 @@ function transaction(
     category: "other",
     categoryName: "기타",
     confidence: "high",
+    financialNature: "ordinary",
     ...rest,
   };
 }
