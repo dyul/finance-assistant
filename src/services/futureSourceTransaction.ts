@@ -28,6 +28,7 @@ export interface FutureSourceForecastScope {
 export type FutureSourceSelectionAction =
   | { type: "newFile" }
   | { type: "fileSettingsReset" }
+  | { type: "manualMappingReanalyzed" }
   | { type: "sameFileReanalyzed"; availableIds: string[] }
   | { type: "setIncluded"; id: string; included: boolean };
 
@@ -35,7 +36,11 @@ export function futureSourceSelectionReducer(
   state: string[],
   action: FutureSourceSelectionAction,
 ): string[] {
-  if (action.type === "newFile" || action.type === "fileSettingsReset") {
+  if (
+    action.type === "newFile" ||
+    action.type === "fileSettingsReset" ||
+    action.type === "manualMappingReanalyzed"
+  ) {
     return [];
   }
 
@@ -103,7 +108,9 @@ export function createFutureSourceTransactions(
 
     return [
       {
-        id: `future-source-${sourceIndex}-${transaction.date}-${direction.type}`,
+        id: "transactionSourceId" in transaction && typeof transaction.transactionSourceId === "string"
+          ? `future-source-${transaction.transactionSourceId}`
+          : `future-source-${sourceIndex}-${transaction.date}-${direction.type}`,
         sourceIndex,
         date: transaction.date,
         description: transaction.description,

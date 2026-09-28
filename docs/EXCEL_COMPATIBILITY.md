@@ -26,6 +26,9 @@
 | --- | --- | --- | --- | --- |
 | 공개 샘플 | `.xlsx` | 분리 입금/출금, 헤더 1행 | PASS | production 샘플 자동 탐지·분석 확인 |
 | 공개 샘플 | `.csv` UTF-8 | 쉼표 구분, quoted 금액, 헤더 1행 | PASS | Excel 샘플과 합계·잔액·세 시나리오 결과 일치 자동 테스트 |
+| 공개 샘플 | `.xlsx` + `.csv` | 두 파일을 한 번에 선택·파일별 10건 분석·전환·제거 | PASS | Day 48B 로컬 375px 브라우저 검증. 파일별 결과만 표시 |
+| 생성 fixture | `.csv` | 같은 파일명 두 개, 손상 CSV 한 개, 비표준 헤더 CSV 한 개 | PASS | 같은 이름 별도 세션, 오류 격리, 비표준 헤더 직접 설정 후 2건 분석을 로컬 브라우저에서 확인 |
+| 생성 fixture | `.csv` UTF-8 | 동일 이름 5파일 × 각 1만 행 | PASS | Day 48B 로컬 브라우저에서 모두 파일별 1만 건 분석. 통합 분석과 실제 은행 파일 검증은 아님 |
 | 생성 fixture | `.csv` UTF-8 BOM·CP949 | CRLF/LF, quoted comma·escaped quote | PASS | strict UTF-8와 WHATWG `euc-kr` fallback 테스트 |
 | 생성 fixture | `.csv` | 헤더 31행·50행·100행 | PASS | 1~30행 실패 시 동일 기준으로 fallback 자동 탐지, 직접 설정도 유지하며 101행은 지원 범위 밖 |
 | 생성 fixture | `.xlsx` | 분리 입금/출금, 헤더 3행 | PASS | 지연 loader가 시트·헤더·행을 읽는 테스트 |

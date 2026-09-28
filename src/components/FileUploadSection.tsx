@@ -75,12 +75,12 @@ export default function FileUploadSection({
             : "Excel / CSV 파일 선택"}
         </span>
         <span className="mt-1 text-sm text-slate-500">
-          .xlsx · .xls · .csv 파일 · 최대 {MAX_EXCEL_FILE_SIZE_LABEL} · 현재 한
-          번에 1개 파일
+          .xlsx · .xls · .csv 파일 · 최대 5개 · 파일당 {MAX_EXCEL_FILE_SIZE_LABEL} · 전체 25MB
         </span>
         <input
           type="file"
           accept=".xlsx,.xls,.csv"
+          multiple
           className="sr-only"
           onChange={onFileChange}
           disabled={isProcessingFile}
@@ -102,8 +102,9 @@ export default function FileUploadSection({
           분석합니다. 원본 거래내역은 브라우저 저장소에 저장하지 않습니다.
         </p>
         <p className="mt-1">
-          확정 예정 거래와 선택 예상 범위만 파일명 기준으로 이 브라우저에
-          저장될 수 있습니다.
+          파일이 하나일 때 확정 예정 거래와 선택 예상 범위만 파일명 기준으로
+          이 브라우저에 저장될 수 있습니다. 업로드한 파일 목록과 원본
+          거래내역은 저장하지 않습니다.
         </p>
       </div>
 

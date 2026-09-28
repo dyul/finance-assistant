@@ -230,6 +230,11 @@ describe("파일 미래 거래 Forecast 변환", () => {
         type: "fileSettingsReset",
       }),
     ).toEqual([]);
+    expect(
+      futureSourceSelectionReducer(excluded, {
+        type: "manualMappingReanalyzed",
+      }),
+    ).toEqual([]);
   });
 });
 

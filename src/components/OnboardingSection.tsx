@@ -58,6 +58,9 @@ export default function OnboardingSection({
           Excel 또는 CSV를 업로드하면 최근 입출금 흐름과 향후 3개월 예상
           잔액을 확인할 수 있습니다.
         </p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          파일은 최대 5개까지 추가할 수 있으며, 현재는 파일마다 따로 분석합니다.
+        </p>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

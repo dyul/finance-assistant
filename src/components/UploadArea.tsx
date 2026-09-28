@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useReducer,
   useRef,
@@ -10,6 +12,7 @@ import ForecastSection from "./ForecastSection";
 import AnalysisReport from "./AnalysisReport";
 import ManualMappingPanel from "./ManualMappingPanel";
 import FileUploadSection from "./FileUploadSection";
+import FileSessionList from "./FileSessionList";
 import {
   getConfidenceLabel,
   getConfidenceStyle,
@@ -106,8 +109,15 @@ import {
 import { loadExcelWorkbook } from "../services/excelWorkbookLoader";
 import {
   getUploadFileType,
-  validateExcelUpload,
 } from "../services/excelUploadValidation";
+import {
+  admitFiles,
+  attachTransactionSource,
+  initialMultiFileState,
+  multiFileReducer,
+  type FileAnalysisSession,
+  type FileAnalysisStatus,
+} from "../services/multiFileSession";
 import {
   CsvLoadError,
   loadCsvDataSource,
@@ -272,7 +282,21 @@ export function ReportPrintButton({
   );
 }
 
-export default function UploadArea() {
+interface FileAnalysisViewProps {
+  session: FileAnalysisSession;
+  active: boolean;
+  singleFileMode: boolean;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onStatusChange: (id: string, status: FileAnalysisStatus, count: number, error: string | null) => void;
+}
+
+function FileAnalysisView({
+  session,
+  active,
+  singleFileMode,
+  onFileChange,
+  onStatusChange,
+}: FileAnalysisViewProps) {
   const [workbook, setWorkbook] = useState<TransactionDataSource | null>(null);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState("");
@@ -420,10 +444,10 @@ export default function UploadArea() {
   const scheduledTransactionForecastScope = useMemo(
     () =>
       partitionScheduledTransactionsByForecastMonths(
-        scheduledTransactions,
+        singleFileMode ? scheduledTransactions : [],
         forecastMonths,
       ),
-    [forecastMonths, scheduledTransactions],
+    [forecastMonths, scheduledTransactions, singleFileMode],
   );
   const applicableScheduledTransactions =
     scheduledTransactionForecastScope.applicable;
@@ -519,6 +543,10 @@ export default function UploadArea() {
     useState<AnalysisIssue | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const fileRequestGateRef = useRef(createLatestRequestGate());
+  const singleFileModeRef = useRef(singleFileMode);
+  useEffect(() => {
+    singleFileModeRef.current = singleFileMode;
+  }, [singleFileMode]);
   const partialAnalysisIssues = useMemo(
     () =>
       createPartialAnalysisIssues(
@@ -605,7 +633,7 @@ export default function UploadArea() {
     nextScenario: ForecastScenario,
     nextScheduledTransactions: ScheduledTransaction[],
   ) {
-    if (!fileName) {
+    if (!fileName || !singleFileMode) {
       return;
     }
 
@@ -650,7 +678,7 @@ export default function UploadArea() {
   }
 
   function handleCurrentFileSettingsReset() {
-    const cleared = clearUserSession(fileName);
+    const cleared = singleFileMode ? clearUserSession(fileName) : true;
 
     setScheduledTransactions([]);
     dispatchFutureSourceSelection({ type: "fileSettingsReset" });
@@ -701,9 +729,15 @@ export default function UploadArea() {
     const parsedResult = parseTransactions(standardizedRows, {
       date1904: sourceWorkbook.date1904,
     });
+    const sourcedTransactions = attachTransactionSource(
+      parsedResult.transactions,
+      session.fileSource,
+      selectedSheetName,
+      headerRowIndex,
+    );
     const referenceDate = getLocalDateKey();
     const transactionDateScope = partitionTransactionsByReferenceDate(
-      parsedResult.transactions,
+      sourcedTransactions,
       referenceDate,
     );
     const validTransactionRowCount = countValidManualTransactions(
@@ -713,11 +747,6 @@ export default function UploadArea() {
     if (validTransactionRowCount === 0) {
       throw new NoValidTransactionsError();
     }
-
-    const nextFutureSourceTransactionIds = createFutureSourceTransactions(
-      parsedResult.transactions,
-      referenceDate,
-    ).map((transaction) => transaction.id);
 
     const financialSummary = calculateFinancialSummary(
       transactionDateScope.historicalTransactions,
@@ -760,12 +789,19 @@ export default function UploadArea() {
           };
 
     setSheetDetection(activeDetection);
-    dispatchFutureSourceSelection({
-      type: "sameFileReanalyzed",
-      availableIds: nextFutureSourceTransactionIds,
-    });
+    dispatchFutureSourceSelection(
+      mode === "manual"
+        ? { type: "manualMappingReanalyzed" }
+        : {
+            type: "sameFileReanalyzed",
+            availableIds: createFutureSourceTransactions(
+              sourcedTransactions,
+              referenceDate,
+            ).map((transaction) => transaction.id),
+          },
+    );
     setColumnMappings(mappings);
-    setTransactions(parsedResult.transactions);
+    setTransactions(sourcedTransactions);
     setAnalysisTransactions(transactionDateScope.historicalTransactions);
     setAnalysisReferenceDate(referenceDate);
     setSummary(financialSummary);
@@ -781,6 +817,7 @@ export default function UploadArea() {
       directionOverrideCount: parsedResult.directionOverrideCount,
       columnConflictCount: parsedResult.columnConflictCount,
     });
+    onStatusChange(session.fileSource.id, "ready", sourcedTransactions.length, null);
   }
 
   function handleManualSheetChange(sheetName: string) {
@@ -848,12 +885,14 @@ export default function UploadArea() {
         setManualMappingErrors([
           "유효한 거래가 없습니다. 거래일·금액 컬럼과 원본 값을 다시 확인해주세요.",
         ]);
+        onStatusChange(session.fileSource.id, "needs_mapping", 0, issue.title);
         return;
       }
 
       setManualMappingErrors([
         "선택한 설정으로 분석하지 못했습니다. 헤더 행과 컬럼 선택을 다시 확인해주세요.",
       ]);
+      onStatusChange(session.fileSource.id, "needs_mapping", 0, "직접 설정을 확인해주세요.");
     }
   }
 
@@ -899,44 +938,21 @@ export default function UploadArea() {
         setBlockingIssue(
           createBlockingAnalysisIssue("noValidTransactions"),
         );
+        onStatusChange(session.fileSource.id, "needs_mapping", 0, "유효한 거래를 찾지 못했습니다.");
         return;
       }
 
       setBlockingIssue(
         createBlockingAnalysisIssue("workbookReadFailed"),
       );
+      onStatusChange(session.fileSource.id, "error", 0, "자동 인식 결과를 다시 읽지 못했습니다.");
     }
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    if (isProcessingFile) {
-      return;
-    }
-
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    const input = event.currentTarget;
-    const requestId = fileRequestGateRef.current.begin();
-    const isLatestRequest = () =>
-      fileRequestGateRef.current.isLatest(requestId);
-
+  async function loadFile(file: File, isLatestRequest: () => boolean) {
     setBlockingIssue(null);
     resetFileInfo();
-
-    const validationIssue = validateExcelUpload(file);
     const uploadFileType = getUploadFileType(file.name);
-
-    if (validationIssue) {
-      setBlockingIssue(createBlockingAnalysisIssue(validationIssue));
-      setIsProcessingFile(false);
-      input.value = "";
-      return;
-    }
-
     setIsProcessingFile(true);
 
     try {
@@ -959,18 +975,18 @@ export default function UploadArea() {
         throw new Error("workbook-without-sheets");
       }
 
-      const restoredFileSession = loadUserFileSession(file.name);
-      const savedRestoredSession = restoredFileSession.storageAvailable
+      const restoredFileSession = singleFileModeRef.current
+        ? loadUserFileSession(file.name)
+        : null;
+      const savedRestoredSession = restoredFileSession?.storageAvailable
         ? saveUserFileSession(file.name, restoredFileSession.session)
-        : false;
+        : true;
 
       setWorkbook(uploadedWorkbook);
       setFileName(file.name);
       setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
-      setScheduledTransactions(
-        restoredFileSession.session.scheduledTransactions,
-      );
-      setSelectedScenario(restoredFileSession.session.selectedScenario);
+      setScheduledTransactions(restoredFileSession?.session.scheduledTransactions ?? []);
+      setSelectedScenario(restoredFileSession?.session.selectedScenario ?? DEFAULT_FORECAST_SCENARIO);
       setSessionStorageAvailable(savedRestoredSession);
 
       const sheetCandidates = uploadedWorkbook.getSheetCandidates();
@@ -996,6 +1012,7 @@ export default function UploadArea() {
               : "transactionSheetNotFound",
           ),
         );
+        onStatusChange(session.fileSource.id, "needs_mapping", 0, "거래내역 표를 자동으로 찾지 못했습니다.");
         return;
       }
 
@@ -1040,31 +1057,52 @@ export default function UploadArea() {
         setBlockingIssue(
           createBlockingAnalysisIssue("noValidTransactions"),
         );
+        onStatusChange(session.fileSource.id, "needs_mapping", 0, "유효한 거래를 찾지 못했습니다.");
         return;
       }
 
       resetFileInfo();
-      setBlockingIssue(
-        createBlockingAnalysisIssue(
-          uploadFileType === "csv"
-            ? caughtError instanceof CsvLoadError &&
-              caughtError.code === "decodingFailed"
-              ? "csvDecodingFailed"
-              : "csvReadFailed"
-            : "workbookReadFailed",
-        ),
+      const issue = createBlockingAnalysisIssue(
+        uploadFileType === "csv"
+          ? caughtError instanceof CsvLoadError &&
+            caughtError.code === "decodingFailed"
+            ? "csvDecodingFailed"
+            : "csvReadFailed"
+          : "workbookReadFailed",
       );
+      setBlockingIssue(issue);
+      onStatusChange(session.fileSource.id, "error", 0, issue.title);
     } finally {
       if (isLatestRequest()) {
         setIsProcessingFile(false);
-        input.value = "";
       }
     }
   }
 
+  useEffect(() => {
+    const gate = fileRequestGateRef.current;
+    const requestId = gate.begin();
+    const isLatestRequest = () => gate.isLatest(requestId);
+    void loadFile(session.file, isLatestRequest);
+    return () => {
+      gate.begin();
+    };
+    // A file is read only once per upload instance. Each instance has its own request gate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.file]);
+
+  useEffect(() => {
+    if (active && session.status === "needs_mapping" && workbook && manualMapping) {
+      setManualMappingOpen(true);
+    }
+  }, [active, session.status, workbook, manualMapping]);
+
+  if (!active) {
+    return null;
+  }
+
   return (
     <>
-      <OnboardingSection visible={!fileName && !isProcessingFile} />
       <section className="screen-only rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <FileUploadSection
         fileName={fileName}
@@ -1082,13 +1120,21 @@ export default function UploadArea() {
           manualMapping !== null &&
           blockingIssue === null
         }
-        onFileChange={handleFileChange}
+        onFileChange={onFileChange}
         onToggleManualMapping={() => {
           setManualMappingOpen((isOpen) => !isOpen);
           setManualMappingErrors([]);
         }}
         onReturnToAutomatic={handleReturnToAutomatic}
       />
+
+      {!singleFileMode && (
+        <div className="mt-4 flex justify-end">
+          <button type="button" onClick={handleCurrentFileSettingsReset} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            선택 파일 설정 초기화
+          </button>
+        </div>
+      )}
 
       {blockingIssue && (
         <AnalysisIssuePanel
@@ -1132,7 +1178,10 @@ export default function UploadArea() {
 
       {summary && sheetDetection && (
         <div className="mt-5 flex justify-end">
-          <ReportPrintButton visible />
+          <div className="text-right">
+            {!singleFileMode && <p className="mb-2 text-xs text-slate-500">현재 선택한 파일 기준 리포트</p>}
+            <ReportPrintButton visible />
+          </div>
         </div>
       )}
 
@@ -1256,7 +1305,7 @@ export default function UploadArea() {
         />
       )}
 
-      {forecasts.length > 0 && (
+      {singleFileMode && forecasts.length > 0 && (
         <ScheduledTransactionSection
           key={`scheduled-transactions-${fileName}`}
           forecastMonths={forecasts.map((forecast) => forecast.month)}
@@ -1511,6 +1560,91 @@ export default function UploadArea() {
           futureSourceForecastScope={futureSourceForecastScope}
         />
       )}
+    </>
+  );
+}
+
+export default function UploadArea() {
+  const [state, dispatch] = useReducer(multiFileReducer, initialMultiFileState);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const activeSession = state.sessions.find(
+    (session) => session.fileSource.id === state.activeFileSourceId,
+  );
+
+  const onStatusChange = useCallback((
+    id: string,
+    status: FileAnalysisStatus,
+    transactionCount: number,
+    error: string | null,
+  ) => {
+    dispatch({ type: "update", id, status, transactionCount, error });
+  }, []);
+
+  function handleFilesSelected(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length === 0) return;
+
+    const admission = admitFiles(files, state.sessions, () => crypto.randomUUID());
+    setUploadErrors(admission.rejected);
+    if (admission.accepted.length > 0) {
+      dispatch({ type: "add", sessions: admission.accepted });
+    }
+  }
+
+  return (
+    <>
+      <OnboardingSection visible={state.sessions.length === 0} />
+      {state.sessions.length === 0 && (
+        <section className="screen-only rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <FileUploadSection
+            fileName=""
+            fileSize=""
+            sourceType={null}
+            sheetNames={[]}
+            sheetDetection={null}
+            automaticSheetDetection={null}
+            analysisMode={null}
+            isProcessingFile={false}
+            manualMappingOpen={false}
+            canConfigureManual={false}
+            onFileChange={handleFilesSelected}
+            onToggleManualMapping={() => undefined}
+            onReturnToAutomatic={() => undefined}
+          />
+        </section>
+      )}
+
+      <FileSessionList
+        sessions={state.sessions}
+        activeFileSourceId={state.activeFileSourceId}
+        onSelect={(id) => dispatch({ type: "select", id })}
+        onRemove={(id) => {
+          dispatch({ type: "remove", id });
+          setUploadErrors([]);
+        }}
+        onReset={() => {
+          dispatch({ type: "reset" });
+          setUploadErrors([]);
+        }}
+      />
+
+      {uploadErrors.length > 0 && (
+        <div className="screen-only mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+          <ul className="list-disc space-y-1 pl-5">{uploadErrors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul>
+        </div>
+      )}
+
+      {state.sessions.map((session) => (
+        <FileAnalysisView
+          key={session.fileSource.id}
+          session={session}
+          active={session.fileSource.id === activeSession?.fileSource.id}
+          singleFileMode={state.sessions.length === 1}
+          onFileChange={handleFilesSelected}
+          onStatusChange={onStatusChange}
+        />
+      ))}
     </>
   );
 }
